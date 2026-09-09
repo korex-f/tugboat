@@ -123,7 +123,12 @@ Panel {
           Text { anchors.centerIn: parent; text: "Drop a .torrent file here"; color: root.muted; font.family: root.fontFamily }
           DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
         }
-        Row { spacing: Style.space(8); Text { text: root.activeCount + " active · " + root.humanSpeed(root.aggregateSpeed); color: root.muted }; Button { text: "Pause all"; onClicked: root.doAction("pause-all") }; Button { text: "Refresh"; onClicked: root.refresh() } }
+        Row {
+          spacing: Style.space(8)
+          Text { text: root.activeCount + " active · " + root.humanSpeed(root.aggregateSpeed); color: root.muted }
+          Button { text: "Pause all"; onClicked: root.doAction("pause-all") }
+          Button { text: "Refresh"; onClicked: root.refresh() }
+        }
         Row {
           spacing: Style.space(6)
           Text { anchors.verticalCenter: parent.verticalCenter; text: "Limit KiB/s"; color: root.muted }
@@ -147,7 +152,11 @@ Panel {
           }
         }
         Text { visible: root.transfers.length === 0 && root.errorText === ""; text: "No queued or active downloads."; color: root.muted }
-        Row { spacing: Style.space(8); Button { text: "Connect Chrome"; onClicked: root.connect("chrome") }; Button { text: "Connect Firefox"; onClicked: root.connect("firefox") } }
+        Row {
+          spacing: Style.space(8)
+          Button { text: "Connect Chrome"; onClicked: root.connect("chrome") }
+          Button { text: "Connect Firefox"; onClicked: root.connect("firefox") }
+        }
         TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(100) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
       }
     }
