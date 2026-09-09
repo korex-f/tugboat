@@ -72,14 +72,14 @@ Panel {
   Timer { interval: 1500; running: root.opened; repeat: true; onTriggered: root.refresh() }
   Process {
     id: provisionProc
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: function(text) {
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: {
       var r; try { r=JSON.parse(text) } catch(e) { root.errorText="Could not provision aria2"; return }
       root.errorText = r.ok ? "" : (r.error || "aria2 setup failed"); root.refresh()
     }}
   }
   Process {
     id: statusProc
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: function(text) {
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: {
       var r; try { r=JSON.parse(text) } catch(e) { root.errorText="Invalid aria2 response"; return }
       var next=r.items || []
       for (var i=0; i<next.length; i++) {
@@ -92,9 +92,9 @@ Panel {
       root.barLabel = root.activeCount ? "󰇚 " + root.activeCount + " " + root.humanSpeed(root.aggregateSpeed) : "󰇚"
     }}
   }
-  Process { id: addProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: function(text) { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
-  Process { id: actionProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: function(text) { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
-  Process { id: browserProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: function(text) { var r=JSON.parse(text); root.browserPayload=r.ok ? JSON.stringify(r.config, null, 2) : r.error } } }
+  Process { id: addProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
+  Process { id: actionProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
+  Process { id: browserProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.browserPayload=r.ok ? JSON.stringify(r.config, null, 2) : r.error } } }
   Process { id: notifyProc }
 
   KeyboardPanel {
