@@ -112,14 +112,14 @@ Panel {
         width: parent.width
         spacing: Style.space(10)
         Text { text: "Downloads"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
-        Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.error; wrapMode: Text.WordWrap }
+        Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
           TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL or magnet link"; onAccepted: root.addUrl() }
           Button { id: addButton; text: "Add"; onClicked: root.addUrl() }
         }
         Rectangle {
-          width: parent.width; height: Style.space(34); radius: Style.radius(6); color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+          width: parent.width; height: Style.space(34); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
           Text { anchors.centerIn: parent; text: "Drop a .torrent file here"; color: root.muted; font.family: root.fontFamily }
           DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
         }
@@ -139,7 +139,7 @@ Panel {
           model: root.transfers
           delegate: Rectangle {
             required property var modelData
-            width: content.width; height: Style.space(76); radius: Style.radius(6); color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
+            width: content.width; height: Style.space(76); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(8); spacing: 3
               Text { width: parent.width; text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
               Text { text: root.percent(modelData) + "% · " + root.humanSpeed(Number(modelData.downloadSpeed || 0)) + (modelData.bittorrent ? " · torrent" + (modelData.numSeeders ? " · " + modelData.numSeeders + " seeders" : "") : " · HTTP"); color: root.muted }
