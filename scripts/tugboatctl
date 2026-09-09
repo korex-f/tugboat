@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Private, local control plane for the Tugboat Quattro plugin."""
+import argparse, base64, json, os, secrets, shutil, socket, subprocess, sys, time
+from pathlib import Path
+from urllib.request import Request, urlopen
+
+ROOT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "tugboat"
+CONFIG, ARIA_CONF, UNIT = ROOT / "config.json", ROOT / "aria2.conf", ROOT / "tugboat-aria2.service"
+
+def emit(value): print(json.dumps(value, separators=(",", ":")))
+def load(): return json.loads(CONFIG.read_text()) if CONFIG.exists() else None
+def free_port():
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close(); return port
+def command(*args, check=False): return subprocess.run(args, text=True, capture_output=True, check=check)
+def unit_text(): return f"""[Unit]\nDescription=Tugboat aria2 RPC daemon\n[Service]\nExecStart=/usr/bin/aria2c --conf-path={ARIA_CONF}\nRestart=on-failure\nRestartSec=2\n[Install]\nWantedBy=default.target\n"""
+def ensure(args):
+    if not shutil.which("aria2c"):
+        emit({"ok":False,"error":"aria2c is not installed. Install the aria2 package, then reopen this panel."}); return
+    ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    cfg = load()
+    desired_port = int(args.port or 0)
+    desired_directory = os.path.expanduser(args.directory or "~/Downloads")
+    if not cfg:
+        cfg = {"port":desired_port or free_port(),"secret":secrets.token_urlsafe(32),"directory":desired_directory,"createdAt":int(time.time())}
+        CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
+    else:
+        # A zero port means "keep the automatically chosen port". Explicit
+        # settings changes are applied without exposing the secret in argv.
+        cfg["directory"] = desired_directory
+        if desired_port: cfg["port"] = desired_port
+        CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
+    Path(os.path.expanduser(cfg["directory"])).mkdir(mode=0o700, parents=True, exist_ok=True)
+    ARIA_CONF.write_text("\n".join(["enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=true", f"rpc-listen-port={cfg['port']}", f"rpc-secret={cfg['secret']}", f"dir={cfg['directory']}", "continue=true", "bt-enable-lpd=true", "seed-time=0", "file-allocation=none", "summary-interval=0", "max-concurrent-downloads=5"]) + "\n")
+    ARIA_CONF.chmod(0o600)
+    UNIT.write_text(unit_text())
+    command("systemctl", "--user", "daemon-reload")
+    if args.auto_start:
+        result = command("systemctl", "--user", "enable", "--now", str(UNIT))
+    else:
+        command("systemctl", "--user", "disable", str(UNIT))
+        result = command("systemctl", "--user", "start", str(UNIT))
+    emit({"ok":result.returncode == 0,"error":result.stderr.strip(),"port":cfg["port"]})
+def rpc(method, params=[]):
+    cfg = load()
+    if not cfg: raise RuntimeError("Tugboat has not been provisioned")
+    payload = {"jsonrpc":"2.0","id":"oma","method":"aria2."+method,"params":["token:"+cfg["secret"]]+params}
+    req = Request(f"http://127.0.0.1:{cfg['port']}/jsonrpc", data=json.dumps(payload).encode(), headers={"Content-Type":"application/json"})
+    response = json.loads(urlopen(req, timeout=3).read())
+    if "error" in response: raise RuntimeError(response["error"].get("message", "RPC failed"))
+    return response["result"]
+def status(_):
+    try:
+        active = rpc("tellActive", [["gid","status","totalLength","completedLength","downloadSpeed","uploadSpeed","files","bittorrent","numSeeders","errorMessage"]])
+        waiting = rpc("tellWaiting", [0, 50, ["gid","status","totalLength","completedLength","downloadSpeed","files","bittorrent","numSeeders","errorMessage"]])
+        stopped = rpc("tellStopped", [0, 20, ["gid","status","totalLength","completedLength","downloadSpeed","files","bittorrent","numSeeders","errorMessage"]])
+        emit({"ok":True,"items":active+waiting+stopped})
+    except Exception as e: emit({"ok":False,"error":str(e),"items":[]})
+def add(args):
+    try:
+        if args.torrent:
+            data = base64.b64encode(Path(args.torrent).read_bytes()).decode(); gid = rpc("addTorrent", [data])
+        else: gid = rpc("addUri", [[args.url]])
+        emit({"ok":True,"gid":gid})
+    except Exception as e: emit({"ok":False,"error":str(e)})
+def action(args):
+    try:
+        methods={"pause":"pause","resume":"unpause","remove":"remove","pause-all":"pauseAll","limit":"changeGlobalOption"}
+        params=[] if args.action == "pause-all" else ([{"max-overall-download-limit":str(args.limit*1024)}] if args.action == "limit" else [args.gid])
+        try:
+            result = rpc(methods[args.action], params)
+        except Exception:
+            if args.action != "remove": raise
+            result = rpc("removeDownloadResult", [args.gid])
+        emit({"ok":True,"result":result})
+    except Exception as e: emit({"ok":False,"error":str(e)})
+def browser(args):
+    cfg=load()
+    if not cfg: emit({"ok":False,"error":"Provision aria2 first"}); return
+    urls={"firefox":"https://addons.mozilla.org/firefox/addon/aria2-integration/", "chrome":"https://chromewebstore.google.com/detail/aria2-explorer/mpkodccbngfoacfalldjimigbofkhgjn"}
+    target="firefox" if args.browser == "firefox" else "chrome"
+    subprocess.Popen(["xdg-open", urls[target]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    emit({"ok":True,"browser":target,"config":{"rpcUrl":f"http://127.0.0.1:{cfg['port']}/jsonrpc","rpcSecret":cfg["secret"]}})
+def main():
+    p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="cmd",required=True)
+    x=sub.add_parser("ensure"); x.add_argument("--port",type=int); x.add_argument("--directory"); x.add_argument("--auto-start", action="store_true")
+    sub.add_parser("status"); x=sub.add_parser("add"); x.add_argument("url",nargs="?"); x.add_argument("--torrent")
+    x=sub.add_parser("action"); x.add_argument("action",choices=["pause","resume","remove","pause-all","limit"]); x.add_argument("gid",nargs="?"); x.add_argument("--limit",type=int,default=0)
+    x=sub.add_parser("browser"); x.add_argument("--browser",choices=["chrome","firefox"],default="chrome")
+    a=p.parse_args(); {"ensure":ensure,"status":status,"add":add,"action":action,"browser":browser}[a.cmd](a)
+if __name__ == "__main__": main()

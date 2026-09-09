@@ -1,0 +1,9 @@
+[Unit]
+Description=Tugboat aria2 RPC daemon
+
+[Service]
+ExecStart=/usr/bin/aria2c --conf-path=%h/.config/tugboat/aria2.conf
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

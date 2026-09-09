@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.dki.tugboat",
+  "name": "Tugboat",
+  "version": "0.1.0",
+  "author": "dki",
+  "license": "MIT",
+  "description": "aria2-backed HTTP, magnet, and torrent downloads for the Omarchy bar.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "BarWidget.qml"},
+  "barWidget": {
+    "displayName": "Tugboat",
+    "description": "Manage aria2 downloads and torrents from the bar.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {"downloadDirectory": "~/Downloads", "globalSpeedLimit": 0, "rpcPort": 0, "autoStart": true},
+    "schema": [
+      {"key": "downloadDirectory", "type": "string", "label": "Download directory", "defaultValue": "~/Downloads"},
+      {"key": "globalSpeedLimit", "type": "integer", "label": "Global limit (KiB/s, 0 = unlimited)", "min": 0, "max": 1048576, "step": 100, "defaultValue": 0},
+      {"key": "rpcPort", "type": "integer", "label": "RPC port (0 = auto)", "min": 0, "max": 65535, "step": 1, "defaultValue": 0},
+      {"key": "autoStart", "type": "boolean", "label": "Start aria2 with your session", "defaultValue": true}
+    ]
+  }
+}
