@@ -42,20 +42,25 @@ def public_formats(info):
 def check(_):
     error = dependency_error()
     emit({"ok": not bool(error), "error": error or ""})
+def is_media_site(url):
+    from yt_dlp.extractor import gen_extractors
+    return any(ie.IE_NAME.lower() != "generic" and ie.suitable(url) for ie in gen_extractors())
 def inspect(url):
     error = dependency_error()
     if error: emit({"ok": False, "error": error}); return
     import yt_dlp
+    recognised = is_media_site(url)
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as ydl:
             info = ydl.extract_info(url, download=False)
         if not info or info.get("extractor_key") == "Generic":
             emit({"ok": True, "media": False}); return
         emit({"ok": True, "media": True, "title": info.get("title", url), "formats": public_formats(info)})
-    except Exception:
-        # A regular HTTP URL should retain the existing aria2 path. Extraction
-        # failures for a known service are surfaced only after a media choice.
-        emit({"ok": True, "media": False})
+    except Exception as exc:
+        if recognised:
+            emit({"ok": False, "error": "yt-dlp could not extract this media URL: " + str(exc)})
+        else:
+            emit({"ok": True, "media": False})
 def worker(job_id):
     import yt_dlp
     jobs = load_jobs(); job = jobs.get(job_id)
