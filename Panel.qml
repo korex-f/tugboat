@@ -74,6 +74,7 @@ Panel {
     if (!settings || settings.autoStart !== false) args.push("--auto-start")
     provisionProc.command = ctl(args); provisionProc.running = true
   }
+  function clearFinished() { actionProc.command = ctl(["action", "clear-finished"]); actionProc.running = true; mediaActionProc.command = mediaCtl(["action", "clear-finished"]); mediaActionProc.running = true }
   function doAction(action, gid) {
     if (String(gid || "").indexOf("yt:") === 0) { mediaActionProc.command = mediaCtl(["action", action, String(gid).substring(3)]); mediaActionProc.running = true; return }
     var args = ["action", action]
@@ -184,6 +185,7 @@ Panel {
           Text { text: root.activeCount + " active · " + root.humanSpeed(root.aggregateSpeed); color: root.muted }
           Button { text: "Pause all"; onClicked: root.doAction("pause-all") }
           Button { text: "Refresh"; onClicked: root.refresh() }
+          Button { text: "Clear finished"; onClicked: root.clearFinished() }
         }
         Row {
           spacing: Style.space(6)

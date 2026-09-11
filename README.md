@@ -20,6 +20,10 @@ yt-dlp uses its Python API and progress hooks; video jobs appear beside aria2 jo
 
 Both `yt-dlp` and `ffmpeg` must already be installed. Tugboat checks this at startup and shows a clear panel error if either is absent; it never installs packages itself. An extraction error for a media site is shown in the panel.
 
+## Queue cleanup
+
+**Remove** stops an active job or removes one queue/history entry. **Clear finished** removes all completed and failed queue entries at once. Neither action deletes downloaded files from disk.
+
 ## Browser connection
 
 Choose **Connect Chrome** or **Connect Firefox**. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.

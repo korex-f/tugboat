@@ -64,8 +64,8 @@ def add(args):
     except Exception as e: emit({"ok":False,"error":str(e)})
 def action(args):
     try:
-        methods={"pause":"pause","resume":"unpause","remove":"remove","pause-all":"pauseAll","limit":"changeGlobalOption"}
-        params=[] if args.action == "pause-all" else ([{"max-overall-download-limit":str(args.limit*1024)}] if args.action == "limit" else [args.gid])
+        methods={"pause":"pause","resume":"unpause","remove":"remove","pause-all":"pauseAll","limit":"changeGlobalOption", "clear-finished":"purgeDownloadResult"}
+        params=[] if args.action in ("pause-all", "clear-finished") else ([{"max-overall-download-limit":str(args.limit*1024)}] if args.action == "limit" else [args.gid])
         try:
             result = rpc(methods[args.action], params)
         except Exception:
@@ -84,7 +84,7 @@ def main():
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="cmd",required=True)
     x=sub.add_parser("ensure"); x.add_argument("--port",type=int); x.add_argument("--directory"); x.add_argument("--auto-start", action="store_true")
     sub.add_parser("status"); x=sub.add_parser("add"); x.add_argument("url",nargs="?"); x.add_argument("--torrent")
-    x=sub.add_parser("action"); x.add_argument("action",choices=["pause","resume","remove","pause-all","limit"]); x.add_argument("gid",nargs="?"); x.add_argument("--limit",type=int,default=0)
+    x=sub.add_parser("action"); x.add_argument("action",choices=["pause","resume","remove","pause-all","limit","clear-finished"]); x.add_argument("gid",nargs="?"); x.add_argument("--limit",type=int,default=0)
     x=sub.add_parser("browser"); x.add_argument("--browser",choices=["chrome","firefox"],default="chrome")
     a=p.parse_args(); {"ensure":ensure,"status":status,"add":add,"action":action,"browser":browser}[a.cmd](a)
 if __name__ == "__main__": main()

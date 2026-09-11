@@ -107,7 +107,13 @@ def status(_):
         items.append({"gid": "yt:" + item["id"], "status": item.get("status", "queued"), "totalLength": str(item.get("total", 0)), "completedLength": str(item.get("downloaded", 0)), "downloadSpeed": str(item.get("speed", 0)), "files": [{"path": filename}], "media": True, "formatLabel": item.get("format", "best"), "errorMessage": item.get("error", "")})
     emit({"ok": True, "items": items})
 def action(args):
-    jobs = load_jobs(); job = jobs.get(args.id)
+    jobs = load_jobs()
+    if args.action == "clear-finished":
+        for job_id in list(jobs):
+            if jobs[job_id].get("status") in ("complete", "error"):
+                del jobs[job_id]
+        save_jobs(jobs); emit({"ok": True}); return
+    job = jobs.get(args.id)
     if not job: emit({"ok": False, "error": "Media job not found"}); return
     try:
         pid = int(job.get("pid", 0)); group = os.getpgid(pid)
@@ -124,7 +130,7 @@ def main():
     x = sub.add_parser("start"); x.add_argument("url"); x.add_argument("--title"); x.add_argument("--format", default="best"); x.add_argument("--directory")
     sub.add_parser("status")
     sub.add_parser("check")
-    x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove"]); x.add_argument("id")
+    x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove", "clear-finished"]); x.add_argument("id", nargs="?")
     x = sub.add_parser("worker"); x.add_argument("id")
     args = parser.parse_args(); {"inspect": lambda value: inspect(value.url), "start": start, "status": status, "check": check, "action": action, "worker": lambda value: worker(value.id)}[args.cmd](args)
 if __name__ == "__main__": main()
