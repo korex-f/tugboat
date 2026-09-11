@@ -109,6 +109,25 @@ Panel {
     if (JSON.stringify(current) === JSON.stringify(next)) return
     if (media) root.mediaTransfers = next
     else root.transfers = next
+    root.syncQueue()
+  }
+  function syncQueue() {
+    // Keep delegates alive while aria2 updates speed and byte counters. A
+    // Repeater over a freshly concatenated JS array tears down every card;
+    // this model only updates the payload role of the affected card.
+    var next = root.transfers.concat(root.mediaTransfers)
+    var wanted = ({})
+    for (var i = 0; i < next.length; i++) wanted[next[i].gid] = next[i]
+    for (var j = queueModel.count - 1; j >= 0; j--) {
+      var existing = queueModel.get(j)
+      if (!wanted[existing.gid]) queueModel.remove(j)
+    }
+    for (var k = 0; k < next.length; k++) {
+      var item = next[k], index = -1
+      for (var n = 0; n < queueModel.count; n++) if (queueModel.get(n).gid === item.gid) { index = n; break }
+      if (index < 0) queueModel.append({ gid: item.gid, payload: item })
+      else if (JSON.stringify(queueModel.get(index).payload) !== JSON.stringify(item)) queueModel.setProperty(index, "payload", item)
+    }
   }
   function provision() {
     var port = settings && settings.rpcPort ? String(settings.rpcPort) : "0"
@@ -146,6 +165,7 @@ Panel {
 
   Component.onCompleted: { provision(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true }
   Timer { interval: 1500; running: true; repeat: true; onTriggered: root.refresh() }
+  ListModel { id: queueModel }
   Process {
     id: provisionProc
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: {
@@ -246,9 +266,10 @@ Panel {
         }
         PanelSeparator { foreground: root.fg }
         Repeater {
-          model: root.allTransfers
+          model: queueModel
           delegate: BorderSurface {
-            required property var modelData
+            required property var payload
+            property var modelData: payload
             width: content.width; height: Style.space(96); radius: Style.space(5); color: root.surface; borderSpec: root.surfaceBorder
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(10); spacing: Style.space(5)
               Row { width: parent.width; spacing: Style.space(7)
