@@ -12,6 +12,14 @@ omarchy plugin add /home/dki/Desktop/open-source/tugboat --enable
 
 The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses a free loopback port unless configured otherwise, writes a mode-`0600` aria2 configuration, and enables a user systemd service. No aria2 configuration is required.
 
+## Video and audio URLs
+
+Tugboat checks submitted URLs with yt-dlp. Ordinary file URLs, magnets, and torrents continue to aria2 unchanged. A URL recognized by yt-dlp opens a format picker with **Best quality**, **Audio only**, and the available resolutions for that item.
+
+yt-dlp uses its Python API and progress hooks; video jobs appear beside aria2 jobs in the same queue with the same progress, speed, ETA, pause, resume, remove, completion, and failure behavior. Raw media transfers are delegated to `aria2c` as yt-dlp’s external downloader.
+
+Both `yt-dlp` and `ffmpeg` must already be installed. Tugboat checks this at startup and shows a clear panel error if either is absent; it never installs packages itself. An extraction error for a media site is shown in the panel.
+
 ## Browser connection
 
 Choose **Connect Chrome** or **Connect Firefox**. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.
