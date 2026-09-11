@@ -62,8 +62,8 @@ Panel {
     var total=Number(item.totalLength || 0); return total ? Math.min(100, Math.round(Number(item.completedLength || 0) * 100 / total)) : 0
   }
   function itemName(item) {
-    if (item.files && item.files.length && item.files[0].path) return String(item.files[0].path).split("/").pop()
     if (item.bittorrent && item.bittorrent.info && item.bittorrent.info.name) return item.bittorrent.info.name
+    if (item.files && item.files.length && item.files[0].path) return String(item.files[0].path).split("/").pop()
     return item.gid
   }
   function refresh() { statusProc.command = ctl(["status"]); statusProc.running = true; mediaStatusProc.command = mediaCtl(["status"]); mediaStatusProc.running = true }

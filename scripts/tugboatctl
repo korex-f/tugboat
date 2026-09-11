@@ -53,7 +53,11 @@ def status(_):
         active = rpc("tellActive", [["gid","status","totalLength","completedLength","downloadSpeed","uploadSpeed","files","bittorrent","numSeeders","errorMessage"]])
         waiting = rpc("tellWaiting", [0, 50, ["gid","status","totalLength","completedLength","downloadSpeed","files","bittorrent","numSeeders","errorMessage"]])
         stopped = rpc("tellStopped", [0, 20, ["gid","status","totalLength","completedLength","downloadSpeed","files","bittorrent","numSeeders","errorMessage"]])
-        emit({"ok":True,"items":active+waiting+stopped})
+        items = active + waiting + stopped
+        # aria2 exposes a short-lived internal magnet metadata transfer as a
+        # separate stopped task; it is not a user download.
+        items = [item for item in items if not any(str(f.get("path", "")).startswith("[METADATA]") for f in item.get("files", []))]
+        emit({"ok":True,"items":items})
     except Exception as e: emit({"ok":False,"error":str(e),"items":[]})
 def add(args):
     try:
