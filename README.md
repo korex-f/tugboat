@@ -22,7 +22,7 @@ Both `yt-dlp` and `ffmpeg` must already be installed. Tugboat checks this at sta
 
 ## Queue cleanup
 
-**Remove** stops an active job or removes one queue/history entry. **Clear finished** removes all completed and failed queue entries at once. Neither action deletes downloaded files from disk.
+**Remove** stops an active job or removes one queue/history entry. **Pause all** and **Resume all** apply to both aria2 and media jobs. **Clear finished** removes all completed and failed queue entries at once. Neither action deletes downloaded files from disk.
 
 ## Browser connection
 

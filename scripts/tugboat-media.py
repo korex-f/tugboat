@@ -108,6 +108,12 @@ def status(_):
     emit({"ok": True, "items": items})
 def action(args):
     jobs = load_jobs()
+    if args.action == "resume-all":
+        for job in jobs.values():
+            if job.get("status") == "paused":
+                try: os.killpg(os.getpgid(int(job.get("pid", 0))), signal.SIGCONT); job["status"] = "active"
+                except ProcessLookupError: pass
+        save_jobs(jobs); emit({"ok": True}); return
     if args.action == "clear-finished":
         for job_id in list(jobs):
             if jobs[job_id].get("status") in ("complete", "error"):
@@ -130,7 +136,7 @@ def main():
     x = sub.add_parser("start"); x.add_argument("url"); x.add_argument("--title"); x.add_argument("--format", default="best"); x.add_argument("--directory")
     sub.add_parser("status")
     sub.add_parser("check")
-    x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove", "clear-finished"]); x.add_argument("id", nargs="?")
+    x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove", "resume-all", "clear-finished"]); x.add_argument("id", nargs="?")
     x = sub.add_parser("worker"); x.add_argument("id")
     args = parser.parse_args(); {"inspect": lambda value: inspect(value.url), "start": start, "status": status, "check": check, "action": action, "worker": lambda value: worker(value.id)}[args.cmd](args)
 if __name__ == "__main__": main()
