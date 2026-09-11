@@ -96,7 +96,20 @@ Panel {
     Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(source) + " | wl-copy"])
     root.notify("Source copied", root.itemName(item), "low")
   }
-  function refresh() { statusProc.command = ctl(["status"]); statusProc.running = true; mediaStatusProc.command = mediaCtl(["status"]); mediaStatusProc.running = true }
+  function refresh() {
+    // Status polling is intentionally quiet: replacing a Repeater model with
+    // identical fresh JSON objects makes every card briefly re-delegate.
+    // Avoid overlapping requests as action completion and the timer can land
+    // in the same event turn.
+    if (!statusProc.running) { statusProc.command = ctl(["status"]); statusProc.running = true }
+    if (!mediaStatusProc.running) { mediaStatusProc.command = mediaCtl(["status"]); mediaStatusProc.running = true }
+  }
+  function replaceTransfers(next, media) {
+    var current = media ? root.mediaTransfers : root.transfers
+    if (JSON.stringify(current) === JSON.stringify(next)) return
+    if (media) root.mediaTransfers = next
+    else root.transfers = next
+  }
   function provision() {
     var port = settings && settings.rpcPort ? String(settings.rpcPort) : "0"
     var directory = settings && settings.downloadDirectory ? String(settings.downloadDirectory) : "~/Downloads"
@@ -155,12 +168,12 @@ Panel {
           root.notify("Download failed", root.itemName(item) + ": " + (item.errorMessage || "aria2 error"), "critical")
       }
       var statusMap={}; for (var j=0; j<next.length; j++) statusMap[next[j].gid]=next[j].status
-      root.previousStatus=statusMap; root.statusInitialized=true; root.transfers=next; root.ariaOnline=r.ok; root.errorText=r.ok ? "" : (r.error || "aria2 is unavailable")
+      root.previousStatus=statusMap; root.statusInitialized=true; root.replaceTransfers(next, false); root.ariaOnline=r.ok; root.errorText=r.ok ? "" : (r.error || "aria2 is unavailable")
       root.barLabel = root.activeCount ? "󰇚 " + root.activeCount + " " + root.humanSpeed(root.aggregateSpeed) : "󰇚"
     }}
   }
   Process { id: mediaDependencyProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) root.errorText=r.error } } }
-  Process { id: mediaStatusProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); var next=r.items || []; for (var i=0; i<next.length; i++) { var item=next[i], was=root.previousMediaStatus[item.gid]; if (root.mediaStatusInitialized && !was && item.status === "active") root.notify("Video download started", root.itemName(item), "low"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "complete") root.notify("Video download complete", root.itemName(item), "normal"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "error") root.notify("Video download failed", root.itemName(item) + ": " + (item.errorMessage || "yt-dlp error"), "critical") }; var statuses={}; for (var j=0; j<next.length; j++) statuses[next[j].gid]=next[j].status; root.previousMediaStatus=statuses; root.mediaStatusInitialized=true; root.mediaTransfers=next } } }
+  Process { id: mediaStatusProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); var next=r.items || []; for (var i=0; i<next.length; i++) { var item=next[i], was=root.previousMediaStatus[item.gid]; if (root.mediaStatusInitialized && !was && item.status === "active") root.notify("Video download started", root.itemName(item), "low"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "complete") root.notify("Video download complete", root.itemName(item), "normal"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "error") root.notify("Video download failed", root.itemName(item) + ": " + (item.errorMessage || "yt-dlp error"), "critical") }; var statuses={}; for (var j=0; j<next.length; j++) statuses[next[j].gid]=next[j].status; root.previousMediaStatus=statuses; root.mediaStatusInitialized=true; root.replaceTransfers(next, true) } } }
   Process { id: mediaInspectProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) { root.errorText=r.error; return }; if (!r.media) { root.addRawUrl(root.mediaUrl); return }; root.mediaTitle=r.title; root.mediaFormats=[{id:"best",label:"Best quality"},{id:"audio",label:"Audio only"}].concat(r.formats || []); root.selectedMediaFormat="best"; root.mediaPickerVisible=true } } }
   Process { id: mediaStartProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.mediaPickerVisible=false; root.refresh() } } }
   Process { id: mediaActionProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
