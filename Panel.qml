@@ -17,6 +17,7 @@ Panel {
   property string browserPayload: ""
   property bool busy: false
   property var previousStatus: ({})
+  property bool statusInitialized: false
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color muted: Qt.darker(fg, 1.5)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -83,7 +84,7 @@ Panel {
   function switchPanel(direction) { return bar && typeof bar.switchPanelFrom === "function" ? bar.switchPanelFrom(hostWidget || root, direction) : false }
 
   Component.onCompleted: provision()
-  Timer { interval: 1500; running: root.opened; repeat: true; onTriggered: root.refresh() }
+  Timer { interval: 1500; running: true; repeat: true; onTriggered: root.refresh() }
   Process {
     id: provisionProc
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: {
@@ -98,11 +99,15 @@ Panel {
       var next=r.items || []
       for (var i=0; i<next.length; i++) {
         var item=next[i], was=root.previousStatus[item.gid]
-        if (was && was !== item.status && item.status === "complete") root.notify("Download complete", root.itemName(item), "normal")
-        if (was && was !== item.status && item.status === "error") root.notify("Download failed", root.itemName(item) + ": " + (item.errorMessage || "aria2 error"), "critical")
+        if (root.statusInitialized && !was && item.status === "active")
+          root.notify("Download started", root.itemName(item), "low")
+        if (root.statusInitialized && was && was !== item.status && item.status === "complete")
+          root.notify("Download complete", root.itemName(item), "normal")
+        if (root.statusInitialized && was && was !== item.status && item.status === "error")
+          root.notify("Download failed", root.itemName(item) + ": " + (item.errorMessage || "aria2 error"), "critical")
       }
       var statusMap={}; for (var j=0; j<next.length; j++) statusMap[next[j].gid]=next[j].status
-      root.previousStatus=statusMap; root.transfers=next; root.errorText=r.ok ? "" : (r.error || "aria2 is unavailable")
+      root.previousStatus=statusMap; root.statusInitialized=true; root.transfers=next; root.errorText=r.ok ? "" : (r.error || "aria2 is unavailable")
       root.barLabel = root.activeCount ? "󰇚 " + root.activeCount + " " + root.humanSpeed(root.aggregateSpeed) : "󰇚"
     }}
   }
