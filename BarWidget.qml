@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import qs.Commons
 import qs.Ui
 
 BarWidget {
@@ -33,6 +34,10 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
+    // The popout is anchored to this button. Keep its geometry stable while
+    // the live count/speed label changes, otherwise a right-aligned bar moves
+    // the anchor and makes the open panel jump sideways.
+    fixedWidth: Style.space(144)
     text: panelLoader.item ? panelLoader.item.barLabel : "󰇚"
     tooltipText: "Tugboat"
     onPressed: function(mouseButton) { if (mouseButton === Qt.LeftButton) root.toggle() }
