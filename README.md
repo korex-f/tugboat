@@ -24,6 +24,10 @@ Both `yt-dlp` and `ffmpeg` must already be installed. Tugboat checks this at sta
 
 **Remove** stops an active job or removes one queue/history entry. **Pause all** and **Resume all** apply to both aria2 and media jobs. **Clear finished** removes all completed and failed queue entries at once. Neither action deletes downloaded files from disk.
 
+## Panel layout
+
+The panel is organized as a compact download center: a live aria2 status header, one URL/magnet input that also accepts `.torrent` files dropped anywhere on the panel, an icon-only queue toolbar, and transfer cards with progress and primary pause/resume actions. Secondary per-transfer actions are behind the `⋯` menu. The header gear opens the settings surface, which contains the current download directory, bandwidth control, aria2 health, and browser-extension connection flow.
+
 ## Browser connection
 
 Choose **Connect Chrome** or **Connect Firefox**. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.

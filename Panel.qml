@@ -21,6 +21,10 @@ Panel {
   property string selectedMediaFormat: "best"
   property string errorText: "Starting aria2…"
   property string browserPayload: ""
+  property bool settingsVisible: false
+  property bool detailsVisible: false
+  property var selectedTransfer: null
+  property bool ariaOnline: false
   property bool busy: false
   property var previousStatus: ({})
   property bool statusInitialized: false
@@ -35,6 +39,8 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var allTransfers: transfers.concat(mediaTransfers)
   readonly property int activeCount: allTransfers.filter(function(x) { return x.status === "active" }).length
+  readonly property int pausedCount: allTransfers.filter(function(x) { return x.status === "paused" }).length
+  readonly property int clearableCount: allTransfers.filter(function(x) { return x.status === "complete" || x.status === "error" }).length
   readonly property int aggregateSpeed: allTransfers.reduce(function(n, x) { return n + Number(x.downloadSpeed || 0) }, 0)
 
   function pathFromUrl(url) {
@@ -69,6 +75,26 @@ Panel {
     if (item.bittorrent && item.bittorrent.info && item.bittorrent.info.name) return item.bittorrent.info.name
     if (item.files && item.files.length && item.files[0].path) return String(item.files[0].path).split("/").pop()
     return item.gid
+  }
+  function typeLabel(item) { return item.bittorrent ? "TORRENT" : (item.media ? "VIDEO" : "HTTP") }
+  function stateLabel(item) { return item.status === "active" ? "DOWNLOADING" : String(item.status || "waiting").toUpperCase() }
+  function itemMeta(item) {
+    var eta = itemEta(item)
+    var seeds = item.bittorrent ? " · " + Number(item.numSeeders || 0) + " seeds" : ""
+    return percent(item) + "% · " + humanSpeed(Number(item.downloadSpeed || 0)) + " · " + (eta || "ETA —") + seeds
+  }
+  function openFolder(item) {
+    var path = item.files && item.files.length ? String(item.files[0].path || "") : ""
+    var slash = path.lastIndexOf("/")
+    if (slash > 0) Qt.openUrlExternally("file://" + path.substring(0, slash))
+    else root.notify("Folder unavailable", "This download has no local file path yet.", "low")
+  }
+  function copySource(item) {
+    var uris = item.files && item.files.length ? item.files[0].uris : []
+    var source = uris && uris.length ? String(uris[0].uri || "") : ""
+    if (!source) { root.notify("Source unavailable", "aria2 did not retain a copyable source for this item.", "low"); return }
+    Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(source) + " | wl-copy"])
+    root.notify("Source copied", root.itemName(item), "low")
   }
   function refresh() { statusProc.command = ctl(["status"]); statusProc.running = true; mediaStatusProc.command = mediaCtl(["status"]); mediaStatusProc.running = true }
   function provision() {
@@ -129,7 +155,7 @@ Panel {
           root.notify("Download failed", root.itemName(item) + ": " + (item.errorMessage || "aria2 error"), "critical")
       }
       var statusMap={}; for (var j=0; j<next.length; j++) statusMap[next[j].gid]=next[j].status
-      root.previousStatus=statusMap; root.statusInitialized=true; root.transfers=next; root.errorText=r.ok ? "" : (r.error || "aria2 is unavailable")
+      root.previousStatus=statusMap; root.statusInitialized=true; root.transfers=next; root.ariaOnline=r.ok; root.errorText=r.ok ? "" : (r.error || "aria2 is unavailable")
       root.barLabel = root.activeCount ? "󰇚 " + root.activeCount + " " + root.humanSpeed(root.aggregateSpeed) : "󰇚"
     }}
   }
@@ -157,23 +183,29 @@ Panel {
         id: content
         width: parent.width
         spacing: Style.space(10)
-        BorderSurface {
-          width: parent.width; height: Style.space(58); radius: Style.cornerRadius
-          color: root.raisedSurface; borderSpec: root.surfaceBorder
-          Row { anchors.fill: parent; anchors.margins: Style.space(12); spacing: Style.space(10)
-            Text { anchors.verticalCenter: parent.verticalCenter; text: "󰇚"; color: Color.accent; font.family: root.fontFamily; font.pixelSize: Style.font.title }
-            Column { anchors.verticalCenter: parent.verticalCenter; spacing: 1
-              Text { text: "Tugboat"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
-              Text { text: root.activeCount ? root.activeCount + " active · " + root.humanSpeed(root.aggregateSpeed) : "Ready for links, magnets, and media"; color: root.muted; font.family: root.fontFamily }
-            }
+        Item {
+          width: parent.width; height: Style.space(50)
+          Row {
+            anchors.left: parent.left; anchors.top: parent.top; spacing: Style.space(8)
+            Text { text: "󰇚"; color: root.accent; font.family: root.fontFamily; font.pixelSize: Style.font.title }
+            Text { text: "Tugboat"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
+            Text { text: root.ariaOnline ? "● aria2 online" : "● aria2 offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
           }
+          Row {
+            anchors.right: parent.right; anchors.top: parent.top; spacing: Style.space(4)
+            Text { text: "↓ " + root.humanSpeed(root.aggregateSpeed); color: root.fg; font.family: root.fontFamily; font.bold: true }
+            PanelActionButton { iconText: "󰒓"; tooltipText: "Settings"; onClicked: root.settingsVisible = true }
+          }
+          Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.activeCount + " download" + (root.activeCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
+        PanelSeparator { foreground: root.fg }
         Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
           TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL or magnet link"; onAccepted: root.addUrl() }
-          Button { id: addButton; text: "Add"; onClicked: root.addUrl() }
+          Button { id: addButton; iconText: "＋"; text: "Add"; onClicked: root.addUrl() }
         }
+        Text { text: "Drop a .torrent anywhere in this panel"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         Rectangle {
           visible: root.mediaPickerVisible
           width: parent.width
@@ -190,57 +222,98 @@ Panel {
             }
           }
         }
-        Rectangle {
-          width: parent.width; height: Style.space(34); radius: Style.cornerRadius; color: root.surface
-          Text { anchors.centerIn: parent; text: "Drop a .torrent file here"; color: root.muted; font.family: root.fontFamily }
-          DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
+        PanelSeparator { foreground: root.fg }
+        Row {
+          width: parent.width; spacing: Style.space(5)
+          PanelActionButton { iconText: "󰏤"; tooltipText: "Pause all"; onClicked: root.doAction("pause-all") }
+          PanelActionButton { iconText: "󰐎"; tooltipText: "Resume all"; onClicked: root.resumeAll() }
+          PanelActionButton { iconText: "󰑐"; tooltipText: "Refresh queue"; onClicked: root.refresh() }
+          Item { width: 1; height: 1 }
+          Button { visible: root.clearableCount > 0; text: "Clear " + root.clearableCount; tooltipText: "Clear completed and failed items"; onClicked: root.clearFinished() }
         }
-        BorderSurface {
-          width: parent.width; height: Style.space(42); radius: Style.cornerRadius
-          color: root.surface; borderSpec: root.surfaceBorder
-          Row { anchors.fill: parent; anchors.margins: Style.space(6); spacing: Style.space(6)
-            Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted }
-            ComboBox {
-              id: limitPicker; width: Style.space(180)
-              model: [{ label: "Unlimited", value: 0 }, { label: "256 KiB/s", value: 256 }, { label: "512 KiB/s", value: 512 }, { label: "1 MiB/s", value: 1024 }, { label: "2 MiB/s", value: 2048 }, { label: "5 MiB/s", value: 5120 }, { label: "10 MiB/s", value: 10240 }]
-              textRole: "label"
-              onActivated: root.doAction("limit", String(model[currentIndex].value))
-            }
-          }
-        }
-        Flow {
-          width: parent.width
-          spacing: Style.space(6)
-          Button { iconText: "󰏤"; text: "Pause all"; onClicked: root.doAction("pause-all") }
-          Button { iconText: "󰐎"; text: "Resume all"; onClicked: root.resumeAll() }
-          Button { iconText: "󰑐"; text: "Refresh"; onClicked: root.refresh() }
-          Button { iconText: "󰃢"; text: "Clear finished"; onClicked: root.clearFinished() }
-        }
+        PanelSeparator { foreground: root.fg }
         Repeater {
           model: root.allTransfers
           delegate: BorderSurface {
             required property var modelData
-            width: content.width; height: Style.space(82); radius: Style.cornerRadius; color: root.surface; borderSpec: root.surfaceBorder
-            Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(8); spacing: 3
-              Text { width: parent.width; text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
-              Text { text: root.percent(modelData) + "% · " + root.humanSpeed(Number(modelData.downloadSpeed || 0)) + (root.itemEta(modelData) !== "" ? " · " + root.itemEta(modelData) : "") + (modelData.bittorrent ? " · torrent" + (modelData.numSeeders ? " · " + modelData.numSeeders + " seeders" : "") : (modelData.media ? " · video" : " · HTTP")); color: root.muted }
-              Rectangle { width: parent.width; height: Style.space(5); radius: height / 2; color: root.surface
+            width: content.width; height: Style.space(96); radius: Style.space(5); color: root.surface; borderSpec: root.surfaceBorder
+            Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(10); spacing: Style.space(5)
+              Row { width: parent.width; spacing: Style.space(7)
+                Text { width: parent.width - typeBadge.implicitWidth - Style.space(7); text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
+                BorderSurface { id: typeBadge; implicitWidth: typeText.implicitWidth + Style.space(8); implicitHeight: typeText.implicitHeight + Style.space(3); radius: Style.space(3); color: root.raisedSurface
+                  Text { id: typeText; anchors.centerIn: parent; text: root.typeLabel(modelData); color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+                }
+              }
+              Text { width: parent.width; text: root.itemMeta(modelData); color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+              Rectangle { width: parent.width; height: Style.space(5); radius: height / 2; color: root.raisedSurface
                 Rectangle { width: parent.width * root.percent(modelData) / 100; height: parent.height; radius: parent.radius; color: root.accent }
               }
+              Text { text: root.stateLabel(modelData); color: modelData.status === "error" ? Color.urgent : root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true }
             }
-            Row { id: actions; anchors.right: parent.right; anchors.rightMargin: Style.space(7); anchors.verticalCenter: parent.verticalCenter; spacing: 3
+            Row { id: actions; anchors.right: parent.right; anchors.rightMargin: Style.space(8); anchors.verticalCenter: parent.verticalCenter; spacing: Style.space(2)
               Button { text: modelData.status === "active" ? "Pause" : "Resume"; onClicked: root.doAction(modelData.status === "active" ? "pause" : "resume", modelData.gid) }
-              Button { text: "Remove"; onClicked: root.doAction("remove", modelData.gid) }
+              PanelActionButton { iconText: "⋯"; tooltipText: "More actions"; onClicked: transferMenu.open() }
+              Menu {
+                id: transferMenu
+                MenuItem { text: "Open containing folder"; onTriggered: root.openFolder(modelData) }
+                MenuItem { text: "Copy source URL"; onTriggered: root.copySource(modelData) }
+                MenuItem { text: "Details"; onTriggered: { root.selectedTransfer = modelData; root.detailsVisible = true } }
+                MenuSeparator {}
+                MenuItem { text: "Remove from Tugboat"; onTriggered: root.doAction("remove", modelData.gid) }
+              }
             }
           }
         }
         Text { visible: root.allTransfers.length === 0 && root.errorText === ""; text: "No queued or active downloads."; color: root.muted }
+        PanelSeparator { foreground: root.fg }
         Row {
-          spacing: Style.space(8)
-          Button { iconText: "󰊯"; text: "Connect Chrome"; onClicked: root.connect("chrome") }
-          Button { iconText: "󰈹"; text: "Connect Firefox"; onClicked: root.connect("firefox") }
+          width: parent.width; spacing: Style.space(8)
+          Text { anchors.verticalCenter: parent.verticalCenter; text: "Download limit"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+          ComboBox {
+            id: limitPicker; width: Style.space(180)
+            model: [{ label: "Unlimited", value: 0 }, { label: "256 KiB/s", value: 256 }, { label: "512 KiB/s", value: 512 }, { label: "1 MiB/s", value: 1024 }, { label: "2 MiB/s", value: 2048 }, { label: "5 MiB/s", value: 5120 }, { label: "10 MiB/s", value: 10240 }]
+            textRole: "label"
+            onActivated: root.doAction("limit", String(model[currentIndex].value))
+          }
         }
-        TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(100) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+      }
+      DropArea { anchors.fill: parent; z: 0; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
+      Rectangle {
+        visible: root.settingsVisible || root.detailsVisible
+        anchors.fill: parent; z: 5; color: Color.popups.background
+        Column {
+          anchors.fill: parent; anchors.margins: Style.space(14); spacing: Style.space(10)
+          Row {
+            width: parent.width
+            Text { text: root.detailsVisible ? "Download details" : "Tugboat settings"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
+            Item { width: parent.width - closeSettings.width - parent.children[0].implicitWidth; height: 1 }
+            PanelActionButton { id: closeSettings; iconText: "󰅖"; tooltipText: "Close"; onClicked: { root.settingsVisible = false; root.detailsVisible = false } }
+          }
+          PanelSeparator { foreground: root.fg }
+          Column {
+            visible: root.settingsVisible; width: parent.width; spacing: Style.space(10)
+            PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg }
+            Text { text: "Directory  " + (settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"); color: root.fg; font.family: root.fontFamily }
+            Text { text: "Change the directory from Tugboat’s Omarchy plugin settings; it applies when aria2 is next provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+            Row { spacing: Style.space(8)
+              Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted; font.family: root.fontFamily }
+              ComboBox { width: Style.space(180); model: limitPicker.model; textRole: "label"; onActivated: root.doAction("limit", String(model[currentIndex].value)) }
+            }
+            PanelSeparator { foreground: root.fg }
+            PanelSectionHeader { text: "ARIA2"; foreground: root.fg }
+            Text { text: root.ariaOnline ? "● Online" : "● Offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily }
+            Text { text: root.ariaOnline ? "The local aria2 daemon is reachable." : (root.errorText || "The local aria2 daemon is unavailable."); width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+            PanelSeparator { foreground: root.fg }
+            PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg }
+            Row { spacing: Style.space(8)
+              Button { iconText: "󰊯"; text: "Connect Chrome"; onClicked: root.connect("chrome") }
+              Button { iconText: "󰈹"; text: "Connect Firefox"; onClicked: root.connect("firefox") }
+            }
+            Text { text: "Connect opens the extension store and gives you a local one-time aria2 configuration payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+            TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(100) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+          }
+          TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Style.space(240) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+        }
       }
     }
   }
