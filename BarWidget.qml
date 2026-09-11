@@ -37,7 +37,9 @@ BarWidget {
     // The popout is anchored to this button. Keep its geometry stable while
     // the live count/speed label changes, otherwise a right-aligned bar moves
     // the anchor and makes the open panel jump sideways.
-    fixedWidth: Style.space(144)
+    // Keep the anchor stable only while the popout is visible. The normal bar
+    // stays compact instead of reserving a wide empty slot all the time.
+    fixedWidth: root.opened ? Style.space(144) : -1
     text: panelLoader.item ? panelLoader.item.barLabel : "󰇚"
     tooltipText: "Tugboat"
     onPressed: function(mouseButton) { if (mouseButton === Qt.LeftButton) root.toggle() }
