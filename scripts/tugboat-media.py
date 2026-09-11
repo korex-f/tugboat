@@ -126,5 +126,5 @@ def main():
     sub.add_parser("check")
     x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove"]); x.add_argument("id")
     x = sub.add_parser("worker"); x.add_argument("id")
-    args = parser.parse_args(); {"inspect": inspect, "start": start, "status": status, "check": check, "action": action, "worker": worker}[args.cmd](args)
+    args = parser.parse_args(); {"inspect": lambda value: inspect(value.url), "start": start, "status": status, "check": check, "action": action, "worker": lambda value: worker(value.id)}[args.cmd](args)
 if __name__ == "__main__": main()
