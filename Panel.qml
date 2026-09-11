@@ -33,6 +33,20 @@ Panel {
     if (bytes < 1048576) return Math.round(bytes / 1024) + " KiB/s"
     return (bytes / 1048576).toFixed(1) + " MiB/s"
   }
+  function formatDuration(seconds) {
+    var remaining = Math.max(0, Math.floor(Number(seconds) || 0))
+    var hours = Math.floor(remaining / 3600)
+    var minutes = Math.floor((remaining % 3600) / 60)
+    var secs = remaining % 60
+    if (hours > 0) return hours + "h " + minutes + "m"
+    if (minutes > 0) return minutes + "m " + secs + "s"
+    return secs + "s"
+  }
+  function itemEta(item) {
+    var remaining = Math.max(0, Number(item.totalLength || 0) - Number(item.completedLength || 0))
+    var speed = Number(item.downloadSpeed || 0)
+    return remaining > 0 && speed > 0 ? "ETA " + formatDuration(Math.ceil(remaining / speed)) : ""
+  }
   function percent(item) {
     var total=Number(item.totalLength || 0); return total ? Math.min(100, Math.round(Number(item.completedLength || 0) * 100 / total)) : 0
   }
@@ -142,7 +156,7 @@ Panel {
             width: content.width; height: Style.space(76); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(8); spacing: 3
               Text { width: parent.width; text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
-              Text { text: root.percent(modelData) + "% · " + root.humanSpeed(Number(modelData.downloadSpeed || 0)) + (modelData.bittorrent ? " · torrent" + (modelData.numSeeders ? " · " + modelData.numSeeders + " seeders" : "") : " · HTTP"); color: root.muted }
+              Text { text: root.percent(modelData) + "% · " + root.humanSpeed(Number(modelData.downloadSpeed || 0)) + (root.itemEta(modelData) !== "" ? " · " + root.itemEta(modelData) : "") + (modelData.bittorrent ? " · torrent" + (modelData.numSeeders ? " · " + modelData.numSeeders + " seeders" : "") : " · HTTP"); color: root.muted }
               ProgressBar { width: parent.width; value: root.percent(modelData) / 100 }
             }
             Row { id: actions; anchors.right: parent.right; anchors.rightMargin: Style.space(7); anchors.verticalCenter: parent.verticalCenter; spacing: 3
