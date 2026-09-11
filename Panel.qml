@@ -148,12 +148,22 @@ Panel {
     focusTarget: keys
     contentWidth: panel.fittedContentWidth(Style.space(520))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
-    PanelKeyCatcher { id: keys; anchors.fill: parent; onCloseRequested: root.close(); onTabRequested: function(d) { root.switchPanel(d) }
+    PanelKeyCatcher { id: keys; anchors.fill: parent; clip: true; onCloseRequested: root.close(); onTabRequested: function(d) { root.switchPanel(d) }
       Column {
         id: content
         width: parent.width
         spacing: Style.space(10)
-        Text { text: "Downloads"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
+        Rectangle {
+          width: parent.width; height: Style.space(58); radius: Style.cornerRadius
+          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.09)
+          Row { anchors.fill: parent; anchors.margins: Style.space(12); spacing: Style.space(10)
+            Text { anchors.verticalCenter: parent.verticalCenter; text: "󰇚"; color: Color.accent; font.family: root.fontFamily; font.pixelSize: Style.font.title }
+            Column { anchors.verticalCenter: parent.verticalCenter; spacing: 1
+              Text { text: "Tugboat"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
+              Text { text: root.activeCount ? root.activeCount + " active · " + root.humanSpeed(root.aggregateSpeed) : "Ready for links, magnets, and media"; color: root.muted; font.family: root.fontFamily }
+            }
+          }
+        }
         Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
@@ -181,25 +191,28 @@ Panel {
           Text { anchors.centerIn: parent; text: "Drop a .torrent file here"; color: root.muted; font.family: root.fontFamily }
           DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
         }
-        Row {
-          spacing: Style.space(8)
-          Text { text: root.activeCount + " active · " + root.humanSpeed(root.aggregateSpeed); color: root.muted }
+        Flow {
+          width: parent.width
+          spacing: Style.space(6)
           Button { text: "Pause all"; onClicked: root.doAction("pause-all") }
           Button { text: "Resume all"; onClicked: root.resumeAll() }
           Button { text: "Refresh"; onClicked: root.refresh() }
           Button { text: "Clear finished"; onClicked: root.clearFinished() }
         }
-        Row {
-          spacing: Style.space(6)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: "Limit KiB/s"; color: root.muted }
-          TextField { id: limitField; width: Style.space(90); text: settings && settings.globalSpeedLimit ? String(settings.globalSpeedLimit) : "0"; inputMethodHints: Qt.ImhDigitsOnly }
-          Button { text: "Apply"; onClicked: { var n=Number(limitField.text); if (isFinite(n) && n >= 0) root.doAction("limit", String(Math.floor(n))) } }
+        Rectangle {
+          width: parent.width; height: Style.space(42); radius: Style.cornerRadius
+          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05)
+          Row { anchors.fill: parent; anchors.margins: Style.space(6); spacing: Style.space(6)
+            Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit · KiB/s"; color: root.muted }
+            TextField { id: limitField; width: Style.space(86); text: settings && settings.globalSpeedLimit ? String(settings.globalSpeedLimit) : "0"; inputMethodHints: Qt.ImhDigitsOnly }
+            Button { text: "Apply"; onClicked: { var n=Number(limitField.text); if (isFinite(n) && n >= 0) root.doAction("limit", String(Math.floor(n))) } }
+          }
         }
         Repeater {
           model: root.allTransfers
           delegate: Rectangle {
             required property var modelData
-            width: content.width; height: Style.space(76); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
+            width: content.width; height: Style.space(82); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(8); spacing: 3
               Text { width: parent.width; text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
               Text { text: root.percent(modelData) + "% · " + root.humanSpeed(Number(modelData.downloadSpeed || 0)) + (root.itemEta(modelData) !== "" ? " · " + root.itemEta(modelData) : "") + (modelData.bittorrent ? " · torrent" + (modelData.numSeeders ? " · " + modelData.numSeeders + " seeders" : "") : (modelData.media ? " · video" : " · HTTP")); color: root.muted }
