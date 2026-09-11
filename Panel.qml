@@ -28,6 +28,10 @@ Panel {
   property bool mediaStatusInitialized: false
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color muted: Qt.darker(fg, 1.5)
+  readonly property color accent: Color.accent
+  readonly property color surface: Style.normalFillFor(fg, accent, Color.urgent)
+  readonly property color raisedSurface: Style.selectedFillFor(fg, accent, Color.urgent)
+  readonly property var surfaceBorder: Border.controlSpec("normal", fg, accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var allTransfers: transfers.concat(mediaTransfers)
   readonly property int activeCount: allTransfers.filter(function(x) { return x.status === "active" }).length
@@ -153,9 +157,9 @@ Panel {
         id: content
         width: parent.width
         spacing: Style.space(10)
-        Rectangle {
+        BorderSurface {
           width: parent.width; height: Style.space(58); radius: Style.cornerRadius
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.09)
+          color: root.raisedSurface; borderSpec: root.surfaceBorder
           Row { anchors.fill: parent; anchors.margins: Style.space(12); spacing: Style.space(10)
             Text { anchors.verticalCenter: parent.verticalCenter; text: "󰇚"; color: Color.accent; font.family: root.fontFamily; font.pixelSize: Style.font.title }
             Column { anchors.verticalCenter: parent.verticalCenter; spacing: 1
@@ -175,7 +179,7 @@ Panel {
           width: parent.width
           height: visible ? Style.space(72) : 0
           radius: Style.cornerRadius
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+          color: root.surface
           Column {
             anchors.fill: parent; anchors.margins: Style.space(8); spacing: Style.space(5)
             Text { width: parent.width; text: root.mediaTitle; color: root.fg; elide: Text.ElideRight }
@@ -187,13 +191,13 @@ Panel {
           }
         }
         Rectangle {
-          width: parent.width; height: Style.space(34); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+          width: parent.width; height: Style.space(34); radius: Style.cornerRadius; color: root.surface
           Text { anchors.centerIn: parent; text: "Drop a .torrent file here"; color: root.muted; font.family: root.fontFamily }
           DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
         }
-        Rectangle {
+        BorderSurface {
           width: parent.width; height: Style.space(42); radius: Style.cornerRadius
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05)
+          color: root.surface; borderSpec: root.surfaceBorder
           Row { anchors.fill: parent; anchors.margins: Style.space(6); spacing: Style.space(6)
             Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted }
             ComboBox {
@@ -207,20 +211,22 @@ Panel {
         Flow {
           width: parent.width
           spacing: Style.space(6)
-          Button { text: "Pause all"; onClicked: root.doAction("pause-all") }
-          Button { text: "Resume all"; onClicked: root.resumeAll() }
-          Button { text: "Refresh"; onClicked: root.refresh() }
-          Button { text: "Clear finished"; onClicked: root.clearFinished() }
+          Button { iconText: "󰏤"; text: "Pause all"; onClicked: root.doAction("pause-all") }
+          Button { iconText: "󰐎"; text: "Resume all"; onClicked: root.resumeAll() }
+          Button { iconText: "󰑐"; text: "Refresh"; onClicked: root.refresh() }
+          Button { iconText: "󰃢"; text: "Clear finished"; onClicked: root.clearFinished() }
         }
         Repeater {
           model: root.allTransfers
-          delegate: Rectangle {
+          delegate: BorderSurface {
             required property var modelData
-            width: content.width; height: Style.space(82); radius: Style.cornerRadius; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+            width: content.width; height: Style.space(82); radius: Style.cornerRadius; color: root.surface; borderSpec: root.surfaceBorder
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(8); spacing: 3
               Text { width: parent.width; text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
               Text { text: root.percent(modelData) + "% · " + root.humanSpeed(Number(modelData.downloadSpeed || 0)) + (root.itemEta(modelData) !== "" ? " · " + root.itemEta(modelData) : "") + (modelData.bittorrent ? " · torrent" + (modelData.numSeeders ? " · " + modelData.numSeeders + " seeders" : "") : (modelData.media ? " · video" : " · HTTP")); color: root.muted }
-              ProgressBar { width: parent.width; value: root.percent(modelData) / 100 }
+              Rectangle { width: parent.width; height: Style.space(5); radius: height / 2; color: root.surface
+                Rectangle { width: parent.width * root.percent(modelData) / 100; height: parent.height; radius: parent.radius; color: root.accent }
+              }
             }
             Row { id: actions; anchors.right: parent.right; anchors.rightMargin: Style.space(7); anchors.verticalCenter: parent.verticalCenter; spacing: 3
               Button { text: modelData.status === "active" ? "Pause" : "Resume"; onClicked: root.doAction(modelData.status === "active" ? "pause" : "resume", modelData.gid) }
@@ -231,8 +237,8 @@ Panel {
         Text { visible: root.allTransfers.length === 0 && root.errorText === ""; text: "No queued or active downloads."; color: root.muted }
         Row {
           spacing: Style.space(8)
-          Button { text: "Connect Chrome"; onClicked: root.connect("chrome") }
-          Button { text: "Connect Firefox"; onClicked: root.connect("firefox") }
+          Button { iconText: "󰊯"; text: "Connect Chrome"; onClicked: root.connect("chrome") }
+          Button { iconText: "󰈹"; text: "Connect Firefox"; onClicked: root.connect("firefox") }
         }
         TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(100) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
       }
