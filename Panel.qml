@@ -191,6 +191,19 @@ Panel {
           Text { anchors.centerIn: parent; text: "Drop a .torrent file here"; color: root.muted; font.family: root.fontFamily }
           DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
         }
+        Rectangle {
+          width: parent.width; height: Style.space(42); radius: Style.cornerRadius
+          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05)
+          Row { anchors.fill: parent; anchors.margins: Style.space(6); spacing: Style.space(6)
+            Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted }
+            ComboBox {
+              id: limitPicker; width: Style.space(180)
+              model: [{ label: "Unlimited", value: 0 }, { label: "256 KiB/s", value: 256 }, { label: "512 KiB/s", value: 512 }, { label: "1 MiB/s", value: 1024 }, { label: "2 MiB/s", value: 2048 }, { label: "5 MiB/s", value: 5120 }, { label: "10 MiB/s", value: 10240 }]
+              textRole: "label"
+              onActivated: root.doAction("limit", String(model[currentIndex].value))
+            }
+          }
+        }
         Flow {
           width: parent.width
           spacing: Style.space(6)
@@ -198,15 +211,6 @@ Panel {
           Button { text: "Resume all"; onClicked: root.resumeAll() }
           Button { text: "Refresh"; onClicked: root.refresh() }
           Button { text: "Clear finished"; onClicked: root.clearFinished() }
-        }
-        Rectangle {
-          width: parent.width; height: Style.space(42); radius: Style.cornerRadius
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05)
-          Row { anchors.fill: parent; anchors.margins: Style.space(6); spacing: Style.space(6)
-            Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit · KiB/s"; color: root.muted }
-            TextField { id: limitField; width: Style.space(86); text: settings && settings.globalSpeedLimit ? String(settings.globalSpeedLimit) : "0"; inputMethodHints: Qt.ImhDigitsOnly }
-            Button { text: "Apply"; onClicked: { var n=Number(limitField.text); if (isFinite(n) && n >= 0) root.doAction("limit", String(Math.floor(n))) } }
-          }
         }
         Repeater {
           model: root.allTransfers
