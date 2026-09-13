@@ -164,6 +164,7 @@ Panel {
   function connect(browser) { browserProc.command = ctl(["browser", "--browser", browser]); browserProc.running = true }
   function refreshAriaInfo() { if (!ariaInfoProc.running) { ariaInfoProc.command = ctl(["info"]); ariaInfoProc.running = true } }
   function restartAria() { if (restartingAria) return; restartingAria = true; restartAriaProc.command = ctl(["restart"]); restartAriaProc.running = true }
+  function setAutoStart(enabled) { if (!autoStartProc.running) { autoStartProc.command = ctl(["auto-start", enabled ? "on" : "off"]); autoStartProc.running = true } }
   function openPluginConfig() { Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/.config/omarchy/shell.json"]) }
   function notify(title, body, urgency) { notifyProc.command = ["notify-send", "-a", "Tugboat", "-u", urgency || "normal", title, body]; notifyProc.running = true }
   function open() { root.controller.show(); refresh() }
@@ -211,6 +212,7 @@ Panel {
   Process { id: browserProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.browserPayload=r.ok ? JSON.stringify(r.config, null, 2) : r.error } } }
   Process { id: ariaInfoProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (r.ok) root.ariaInfo=r } } }
   Process { id: restartAriaProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.restartingAria=false; root.errorText=r.ok ? "" : (r.error || "Could not restart aria2"); root.refresh(); root.refreshAriaInfo() } } }
+  Process { id: autoStartProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : (r.error || "Could not change auto-start"); root.refreshAriaInfo() } } }
   Process { id: notifyProc }
 
   KeyboardPanel {
@@ -350,11 +352,11 @@ Panel {
           Flickable {
             anchors.top: settingsHeader.bottom; anchors.topMargin: Style.space(8)
             anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
-            contentWidth: width; contentHeight: settingsContent.implicitHeight
+            contentWidth: width; contentHeight: settingsContent.implicitHeight + Style.space(12)
             clip: true; interactive: contentHeight > height; flickableDirection: Flickable.VerticalFlick; boundsBehavior: Flickable.StopAtBounds
             Column {
               id: settingsContent
-              width: parent.width; spacing: Style.space(7)
+              x: Style.space(4); y: Style.space(6); width: parent.width - Style.space(8); spacing: Style.space(7)
               visible: root.settingsVisible
               PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg }
               Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
@@ -371,7 +373,7 @@ Panel {
               }
               Item { width: parent.width; height: Style.space(24)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.setAutoStart(!root.ariaInfo.autoStart) }
               }
               Button { text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; enabled: !root.restartingAria; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.restartAria() }
               Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.advancedVisible = !root.advancedVisible }

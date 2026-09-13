@@ -21,20 +21,21 @@ def ensure(args):
     desired_port = int(args.port or 0)
     desired_directory = os.path.expanduser(args.directory or "~/Downloads")
     if not cfg:
-        cfg = {"port":desired_port or free_port(),"secret":secrets.token_urlsafe(32),"directory":desired_directory,"createdAt":int(time.time())}
+        cfg = {"port":desired_port or free_port(),"secret":secrets.token_urlsafe(32),"directory":desired_directory,"autoStart":bool(args.auto_start),"createdAt":int(time.time())}
         CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
     else:
         # A zero port means "keep the automatically chosen port". Explicit
         # settings changes are applied without exposing the secret in argv.
         cfg["directory"] = desired_directory
         if desired_port: cfg["port"] = desired_port
+        if "autoStart" not in cfg: cfg["autoStart"] = bool(args.auto_start)
         CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
     Path(os.path.expanduser(cfg["directory"])).mkdir(mode=0o700, parents=True, exist_ok=True)
     ARIA_CONF.write_text("\n".join(["enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=true", f"rpc-listen-port={cfg['port']}", f"rpc-secret={cfg['secret']}", f"dir={cfg['directory']}", "continue=true", "bt-enable-lpd=true", "seed-time=0", "file-allocation=none", "summary-interval=0", "max-concurrent-downloads=5"]) + "\n")
     ARIA_CONF.chmod(0o600)
     UNIT.write_text(unit_text())
     command("systemctl", "--user", "daemon-reload")
-    if args.auto_start:
+    if cfg["autoStart"]:
         result = command("systemctl", "--user", "enable", "--now", str(UNIT))
     else:
         command("systemctl", "--user", "disable", str(UNIT))
@@ -87,6 +88,14 @@ def info(_):
 def restart(_):
     result = command("systemctl", "--user", "restart", "tugboat-aria2.service")
     emit({"ok":result.returncode == 0,"error":result.stderr.strip()})
+def auto_start(args):
+    cfg = load()
+    if not cfg: emit({"ok":False,"error":"Tugboat has not been provisioned"}); return
+    enabled = args.state == "on"
+    cfg["autoStart"] = enabled
+    CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
+    result = command("systemctl", "--user", "enable" if enabled else "disable", "tugboat-aria2.service")
+    emit({"ok":result.returncode == 0,"error":result.stderr.strip(),"autoStart":enabled})
 def browser(args):
     cfg=load()
     if not cfg: emit({"ok":False,"error":"Provision aria2 first"}); return
@@ -100,6 +109,7 @@ def main():
     sub.add_parser("status"); x=sub.add_parser("add"); x.add_argument("url",nargs="?"); x.add_argument("--torrent")
     x=sub.add_parser("action"); x.add_argument("action",choices=["pause","resume","remove","pause-all","resume-all","limit","clear-finished"]); x.add_argument("gid",nargs="?"); x.add_argument("--limit",type=int,default=0)
     sub.add_parser("info"); sub.add_parser("restart")
+    x=sub.add_parser("auto-start"); x.add_argument("state",choices=["on","off"])
     x=sub.add_parser("browser"); x.add_argument("--browser",choices=["chrome","firefox"],default="chrome")
-    a=p.parse_args(); {"ensure":ensure,"status":status,"add":add,"action":action,"info":info,"restart":restart,"browser":browser}[a.cmd](a)
+    a=p.parse_args(); {"ensure":ensure,"status":status,"add":add,"action":action,"info":info,"restart":restart,"auto-start":auto_start,"browser":browser}[a.cmd](a)
 if __name__ == "__main__": main()
