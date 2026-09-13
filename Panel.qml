@@ -25,6 +25,9 @@ Panel {
   property bool detailsVisible: false
   property var selectedTransfer: null
   property bool ariaOnline: false
+  property bool advancedVisible: false
+  property bool restartingAria: false
+  property var ariaInfo: ({ port: "—", authenticated: false, autoStart: false, version: "aria2" })
   property bool busy: false
   property var previousStatus: ({})
   property bool statusInitialized: false
@@ -159,6 +162,9 @@ Panel {
   }
   function addTorrent(file) { addProc.command = ctl(["add", "--torrent", file]); addProc.running = true }
   function connect(browser) { browserProc.command = ctl(["browser", "--browser", browser]); browserProc.running = true }
+  function refreshAriaInfo() { if (!ariaInfoProc.running) { ariaInfoProc.command = ctl(["info"]); ariaInfoProc.running = true } }
+  function restartAria() { if (restartingAria) return; restartingAria = true; restartAriaProc.command = ctl(["restart"]); restartAriaProc.running = true }
+  function openPluginConfig() { Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/.config/omarchy/shell.json"]) }
   function notify(title, body, urgency) { notifyProc.command = ["notify-send", "-a", "Tugboat", "-u", urgency || "normal", title, body]; notifyProc.running = true }
   function open() { root.controller.show(); refresh() }
   function close() { root.controller.hide() }
@@ -166,7 +172,7 @@ Panel {
   function closeForPopoutSwitch() { close() }
   function switchPanel(direction) { return bar && typeof bar.switchPanelFrom === "function" ? bar.switchPanelFrom(hostWidget || root, direction) : false }
 
-  Component.onCompleted: { provision(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true }
+  Component.onCompleted: { provision(); refreshAriaInfo(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true }
   Timer { interval: 1500; running: true; repeat: true; onTriggered: root.refresh() }
   ListModel { id: queueModel }
   Process {
@@ -203,6 +209,8 @@ Panel {
   Process { id: addProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
   Process { id: actionProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
   Process { id: browserProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.browserPayload=r.ok ? JSON.stringify(r.config, null, 2) : r.error } } }
+  Process { id: ariaInfoProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (r.ok) root.ariaInfo=r } } }
+  Process { id: restartAriaProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.restartingAria=false; root.errorText=r.ok ? "" : (r.error || "Could not restart aria2"); root.refresh(); root.refreshAriaInfo() } } }
   Process { id: notifyProc }
 
   KeyboardPanel {
@@ -230,7 +238,7 @@ Panel {
           Row {
             anchors.right: parent.right; anchors.top: parent.top; spacing: Style.space(4)
             Text { text: "↓ " + root.humanSpeed(root.aggregateSpeed); color: root.fg; font.family: root.fontFamily; font.bold: true }
-            PanelActionButton { iconText: "󰒓"; tooltipText: "Settings"; onClicked: root.settingsVisible = true }
+            PanelActionButton { iconText: "󰒓"; tooltipText: "Settings"; onClicked: { root.settingsVisible = true; root.refreshAriaInfo() } }
           }
           Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.downloadCount + " download" + (root.downloadCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
@@ -261,9 +269,9 @@ Panel {
         PanelSeparator { foreground: root.fg }
         Row {
           width: parent.width; spacing: Style.space(5)
-          PanelActionButton { iconText: "󰏤"; tooltipText: "Pause all"; onClicked: root.doAction("pause-all") }
-          PanelActionButton { iconText: "󰐎"; tooltipText: "Resume all"; onClicked: root.resumeAll() }
-          PanelActionButton { iconText: "󰑐"; tooltipText: "Refresh queue"; onClicked: root.refresh() }
+          PanelActionButton { enabled: root.downloadCount > 0; iconText: "󰏤"; tooltipText: "Pause all"; onClicked: root.doAction("pause-all") }
+          PanelActionButton { enabled: root.downloadCount > 0; iconText: "󰐎"; tooltipText: "Resume all"; onClicked: root.resumeAll() }
+          PanelActionButton { enabled: root.downloadCount > 0; iconText: "󰑐"; tooltipText: "Refresh queue"; onClicked: root.refresh() }
           Item { width: 1; height: 1 }
           Button { visible: root.clearableCount > 0; text: "Clear " + root.clearableCount; tooltipText: "Clear completed and failed items"; onClicked: root.clearFinished() }
         }
@@ -306,7 +314,12 @@ Panel {
             }
           }
         }
-        Text { visible: root.allTransfers.length === 0 && root.errorText === ""; text: "No queued or active downloads."; color: root.muted }
+        Column {
+          visible: root.downloadCount === 0 && root.errorText === ""
+          width: parent.width; spacing: Style.space(3)
+          Text { text: "Nothing downloading"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body; font.bold: true }
+          Text { text: "Paste a link, magnet, or drop a .torrent to get started."; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; width: parent.width }
+        }
         PanelSeparator { foreground: root.fg }
         Item {
           width: parent.width; height: Style.space(24)
@@ -324,44 +337,74 @@ Panel {
       Rectangle {
         visible: root.settingsVisible || root.detailsVisible
         anchors.fill: parent; z: 5; color: Color.popups.background
-        Column {
-          anchors.fill: parent; anchors.margins: Style.space(14); spacing: Style.space(10)
+        Item {
+          anchors.fill: parent; anchors.margins: Style.space(14)
           Row {
-            width: parent.width
-            Text { text: root.detailsVisible ? "Download details" : "Tugboat settings"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
+            id: settingsHeader
+            anchors.top: parent.top; width: parent.width; height: Style.space(32)
+            Text { text: root.detailsVisible ? "Download details" : "Tugboat settings"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(26); font.bold: true }
             Item { width: parent.width - closeSettings.width - parent.children[0].implicitWidth; height: 1 }
             PanelActionButton { id: closeSettings; iconText: "󰅖"; tooltipText: "Close"; onClicked: { root.settingsVisible = false; root.detailsVisible = false } }
           }
-          PanelSeparator { foreground: root.fg }
-          Column {
-            visible: root.settingsVisible; width: parent.width; spacing: Style.space(10)
-            PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg }
-            Text { text: "Directory  " + (settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"); color: root.fg; font.family: root.fontFamily }
-            Text { text: "Change the directory from Tugboat’s Omarchy plugin settings; it applies when aria2 is next provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-            Item { width: parent.width; height: Style.space(24)
-              Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-              Dropdown {
-                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(168); showLabel: false; rowHeight: Style.space(24); popupRowHeight: Style.space(26)
-                foreground: root.fg; background: Color.popups.background; fontFamily: root.fontFamily
-                options: root.speedLimitOptions; value: root.speedLimitValue
-                onChanged: function(value) { root.speedLimitValue = value; root.doAction("limit", value) }
+          PanelSeparator { anchors.top: settingsHeader.bottom; foreground: root.fg }
+          Flickable {
+            anchors.top: settingsHeader.bottom; anchors.topMargin: Style.space(8)
+            anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
+            contentWidth: width; contentHeight: settingsContent.implicitHeight
+            clip: true; boundsBehavior: Flickable.StopAtBounds
+            Column {
+              id: settingsContent
+              width: parent.width; spacing: Style.space(10)
+              visible: root.settingsVisible
+              PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg; fontSize: Style.space(15) }
+              Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
+              Item { width: parent.width; height: Style.space(24)
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15); elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(12) }
+                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open plugin config"; tooltipText: "Edit Tugboat settings in shell.json"; onClicked: root.openPluginConfig() }
               }
+              Text { text: "Managed through Tugboat’s Omarchy plugin configuration and applied when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              PanelSeparator { foreground: root.fg }
+              PanelSectionHeader { text: "ARIA2"; foreground: root.fg; fontSize: Style.space(15) }
+              Item { width: parent.width; height: Style.space(24)
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Status"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
+                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaOnline ? "● Online" : "● Offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              }
+              Item { width: parent.width; height: Style.space(24)
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
+                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              }
+              Button { text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; enabled: !root.restartingAria; onClicked: root.restartAria() }
+              Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; onClicked: root.advancedVisible = !root.advancedVisible }
+              Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(6)
+                Item { width: parent.width; height: Style.space(22)
+                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC port"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.port || "—"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                }
+                Item { width: parent.width; height: Style.space(22)
+                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC authentication"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.authenticated ? "Enabled" : "Unavailable"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                }
+              }
+              PanelSeparator { foreground: root.fg }
+              PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg; fontSize: Style.space(15) }
+              Item { width: parent.width; height: Style.space(28)
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chrome / Brave"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
+                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; onClicked: root.connect("chrome") }
+              }
+              Item { width: parent.width; height: Style.space(28)
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
+                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; onClicked: root.connect("firefox") }
+              }
+              Text { text: "Connect opens the extension store and shows a one-time local configuration payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+              PanelSeparator { foreground: root.fg }
+              PanelSectionHeader { text: "ABOUT"; foreground: root.fg; fontSize: Style.space(15) }
+              Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              Text { text: root.ariaInfo.version || "aria2"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              Item { width: 1; height: Style.space(4) }
             }
-            PanelSeparator { foreground: root.fg }
-            PanelSectionHeader { text: "ARIA2"; foreground: root.fg }
-            Text { text: root.ariaOnline ? "● Online" : "● Offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily }
-            Text { text: root.ariaOnline ? "The local aria2 daemon is reachable." : (root.errorText || "The local aria2 daemon is unavailable."); width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-            PanelSeparator { foreground: root.fg }
-            PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg }
-            Row { spacing: Style.space(8)
-              Button { iconText: "󰊯"; text: "Connect Chrome"; onClicked: root.connect("chrome") }
-              Button { iconText: "󰈹"; text: "Connect Firefox"; onClicked: root.connect("firefox") }
-            }
-            Text { text: "Connect opens the extension store and gives you a local one-time aria2 configuration payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-            TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(100) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+            TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
           }
-          TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Style.space(240) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
         }
       }
     }

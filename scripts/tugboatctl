@@ -77,6 +77,16 @@ def action(args):
             result = rpc("removeDownloadResult", [args.gid])
         emit({"ok":True,"result":result})
     except Exception as e: emit({"ok":False,"error":str(e)})
+def info(_):
+    cfg = load()
+    version = command("aria2c", "--version").stdout.splitlines()
+    enabled = command("systemctl", "--user", "is-enabled", "tugboat-aria2.service").returncode == 0
+    emit({"ok":cfg is not None, "port":cfg.get("port") if cfg else None,
+          "authenticated":bool(cfg and cfg.get("secret")), "autoStart":enabled,
+          "version":version[0].strip() if version else "aria2 unavailable"})
+def restart(_):
+    result = command("systemctl", "--user", "restart", "tugboat-aria2.service")
+    emit({"ok":result.returncode == 0,"error":result.stderr.strip()})
 def browser(args):
     cfg=load()
     if not cfg: emit({"ok":False,"error":"Provision aria2 first"}); return
@@ -89,6 +99,7 @@ def main():
     x=sub.add_parser("ensure"); x.add_argument("--port",type=int); x.add_argument("--directory"); x.add_argument("--auto-start", action="store_true")
     sub.add_parser("status"); x=sub.add_parser("add"); x.add_argument("url",nargs="?"); x.add_argument("--torrent")
     x=sub.add_parser("action"); x.add_argument("action",choices=["pause","resume","remove","pause-all","resume-all","limit","clear-finished"]); x.add_argument("gid",nargs="?"); x.add_argument("--limit",type=int,default=0)
+    sub.add_parser("info"); sub.add_parser("restart")
     x=sub.add_parser("browser"); x.add_argument("--browser",choices=["chrome","firefox"],default="chrome")
-    a=p.parse_args(); {"ensure":ensure,"status":status,"add":add,"action":action,"browser":browser}[a.cmd](a)
+    a=p.parse_args(); {"ensure":ensure,"status":status,"add":add,"action":action,"info":info,"restart":restart,"browser":browser}[a.cmd](a)
 if __name__ == "__main__": main()
