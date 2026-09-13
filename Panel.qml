@@ -38,10 +38,13 @@ Panel {
   readonly property var surfaceBorder: Border.controlSpec("normal", fg, accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var allTransfers: transfers.concat(mediaTransfers)
+  readonly property int downloadCount: allTransfers.length
   readonly property int activeCount: allTransfers.filter(function(x) { return x.status === "active" }).length
   readonly property int pausedCount: allTransfers.filter(function(x) { return x.status === "paused" }).length
   readonly property int clearableCount: allTransfers.filter(function(x) { return x.status === "complete" || x.status === "error" }).length
   readonly property int aggregateSpeed: allTransfers.reduce(function(n, x) { return n + Number(x.downloadSpeed || 0) }, 0)
+  property string speedLimitValue: "0"
+  readonly property var speedLimitOptions: [{ label: "Unlimited", value: "0" }, { label: "256 KiB/s", value: "256" }, { label: "512 KiB/s", value: "512" }, { label: "1 MiB/s", value: "1024" }, { label: "2 MiB/s", value: "2048" }, { label: "5 MiB/s", value: "5120" }, { label: "10 MiB/s", value: "10240" }]
 
   function pathFromUrl(url) {
     var value = String(url || "")
@@ -229,7 +232,7 @@ Panel {
             Text { text: "↓ " + root.humanSpeed(root.aggregateSpeed); color: root.fg; font.family: root.fontFamily; font.bold: true }
             PanelActionButton { iconText: "󰒓"; tooltipText: "Settings"; onClicked: root.settingsVisible = true }
           }
-          Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.activeCount + " download" + (root.activeCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+          Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.downloadCount + " download" + (root.downloadCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
         PanelSeparator { foreground: root.fg }
         Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.urgent; wrapMode: Text.WordWrap }
@@ -285,7 +288,12 @@ Panel {
               Text { text: root.stateLabel(modelData); color: modelData.status === "error" ? Color.urgent : root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true }
             }
             Row { id: actions; anchors.right: parent.right; anchors.rightMargin: Style.space(8); anchors.verticalCenter: parent.verticalCenter; spacing: Style.space(2)
-              Button { text: modelData.status === "active" ? "Pause" : "Resume"; onClicked: root.doAction(modelData.status === "active" ? "pause" : "resume", modelData.gid) }
+              PanelActionButton {
+                iconText: modelData.status === "active" ? "󰏤" : "󰐎"
+                tooltipText: modelData.status === "active" ? "Pause download" : "Resume download"
+                focusable: true
+                onClicked: root.doAction(modelData.status === "active" ? "pause" : "resume", modelData.gid)
+              }
               PanelActionButton { iconText: "⋯"; tooltipText: "More actions"; onClicked: transferMenu.open() }
               Menu {
                 id: transferMenu
@@ -300,14 +308,15 @@ Panel {
         }
         Text { visible: root.allTransfers.length === 0 && root.errorText === ""; text: "No queued or active downloads."; color: root.muted }
         PanelSeparator { foreground: root.fg }
-        Row {
-          width: parent.width; spacing: Style.space(8)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: "Download limit"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-          ComboBox {
-            id: limitPicker; width: Style.space(180)
-            model: [{ label: "Unlimited", value: 0 }, { label: "256 KiB/s", value: 256 }, { label: "512 KiB/s", value: 512 }, { label: "1 MiB/s", value: 1024 }, { label: "2 MiB/s", value: 2048 }, { label: "5 MiB/s", value: 5120 }, { label: "10 MiB/s", value: 10240 }]
-            textRole: "label"
-            onActivated: root.doAction("limit", String(model[currentIndex].value))
+        Item {
+          width: parent.width; height: Style.space(24)
+          Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+          Dropdown {
+            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(168); showLabel: false; rowHeight: Style.space(24); popupRowHeight: Style.space(26)
+            foreground: root.fg; background: Color.popups.background; fontFamily: root.fontFamily
+            options: root.speedLimitOptions; value: root.speedLimitValue
+            onChanged: function(value) { root.speedLimitValue = value; root.doAction("limit", value) }
           }
         }
       }
@@ -329,9 +338,15 @@ Panel {
             PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg }
             Text { text: "Directory  " + (settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"); color: root.fg; font.family: root.fontFamily }
             Text { text: "Change the directory from Tugboat’s Omarchy plugin settings; it applies when aria2 is next provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-            Row { spacing: Style.space(8)
-              Text { anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted; font.family: root.fontFamily }
-              ComboBox { width: Style.space(180); model: limitPicker.model; textRole: "label"; onActivated: root.doAction("limit", String(model[currentIndex].value)) }
+            Item { width: parent.width; height: Style.space(24)
+              Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Speed limit"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Dropdown {
+                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                width: Style.space(168); showLabel: false; rowHeight: Style.space(24); popupRowHeight: Style.space(26)
+                foreground: root.fg; background: Color.popups.background; fontFamily: root.fontFamily
+                options: root.speedLimitOptions; value: root.speedLimitValue
+                onChanged: function(value) { root.speedLimitValue = value; root.doAction("limit", value) }
+              }
             }
             PanelSeparator { foreground: root.fg }
             PanelSectionHeader { text: "ARIA2"; foreground: root.fg }
