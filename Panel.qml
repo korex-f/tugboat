@@ -341,8 +341,8 @@ Panel {
           anchors.fill: parent; anchors.margins: Style.space(14)
           Row {
             id: settingsHeader
-            anchors.top: parent.top; width: parent.width; height: Style.space(32)
-            Text { text: root.detailsVisible ? "Download details" : "Tugboat settings"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(26); font.bold: true }
+            anchors.top: parent.top; width: parent.width; height: Style.space(28)
+            Text { text: root.detailsVisible ? "Download details" : "Tugboat settings"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
             Item { width: parent.width - closeSettings.width - parent.children[0].implicitWidth; height: 1 }
             PanelActionButton { id: closeSettings; iconText: "󰅖"; tooltipText: "Close"; onClicked: { root.settingsVisible = false; root.detailsVisible = false } }
           }
@@ -351,56 +351,56 @@ Panel {
             anchors.top: settingsHeader.bottom; anchors.topMargin: Style.space(8)
             anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
             contentWidth: width; contentHeight: settingsContent.implicitHeight
-            clip: true; boundsBehavior: Flickable.StopAtBounds
+            clip: true; interactive: contentHeight > height; flickableDirection: Flickable.VerticalFlick; boundsBehavior: Flickable.StopAtBounds
             Column {
               id: settingsContent
-              width: parent.width; spacing: Style.space(10)
+              width: parent.width; spacing: Style.space(7)
               visible: root.settingsVisible
-              PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg; fontSize: Style.space(15) }
-              Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
+              PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg }
+              Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               Item { width: parent.width; height: Style.space(24)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15); elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(12) }
-                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open plugin config"; tooltipText: "Edit Tugboat settings in shell.json"; onClicked: root.openPluginConfig() }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(8) }
+                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; tooltipText: "Edit Tugboat settings in shell.json"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.openPluginConfig() }
               }
-              Text { text: "Managed through Tugboat’s Omarchy plugin configuration and applied when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              Text { text: "Applies when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               PanelSeparator { foreground: root.fg }
-              PanelSectionHeader { text: "ARIA2"; foreground: root.fg; fontSize: Style.space(15) }
+              PanelSectionHeader { text: "ARIA2"; foreground: root.fg }
               Item { width: parent.width; height: Style.space(24)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Status"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
-                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaOnline ? "● Online" : "● Offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Status"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaOnline ? "● Online" : "● Offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               }
               Item { width: parent.width; height: Style.space(24)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
-                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               }
-              Button { text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; enabled: !root.restartingAria; onClicked: root.restartAria() }
-              Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; onClicked: root.advancedVisible = !root.advancedVisible }
-              Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(6)
+              Button { text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; enabled: !root.restartingAria; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.restartAria() }
+              Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.advancedVisible = !root.advancedVisible }
+              Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(4)
                 Item { width: parent.width; height: Style.space(22)
-                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC port"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
-                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.port || "—"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC port"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.port || "—"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
                 }
                 Item { width: parent.width; height: Style.space(22)
-                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC authentication"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
-                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.authenticated ? "Enabled" : "Unavailable"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC authentication"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.authenticated ? "Enabled" : "Unavailable"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
                 }
               }
               PanelSeparator { foreground: root.fg }
-              PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg; fontSize: Style.space(15) }
+              PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg }
               Item { width: parent.width; height: Style.space(28)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chrome / Brave"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
-                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; onClicked: root.connect("chrome") }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chrome / Brave"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.connect("chrome") }
               }
               Item { width: parent.width; height: Style.space(28)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.space(16) }
-                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; onClicked: root.connect("firefox") }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.connect("firefox") }
               }
-              Text { text: "Connect opens the extension store and shows a one-time local configuration payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              Text { text: "Connect opens the extension store and local setup payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
               PanelSeparator { foreground: root.fg }
-              PanelSectionHeader { text: "ABOUT"; foreground: root.fg; fontSize: Style.space(15) }
-              Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
-              Text { text: root.ariaInfo.version || "aria2"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.space(15) }
+              PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
+              Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Text { text: root.ariaInfo.version || "aria2"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Item { width: 1; height: Style.space(4) }
             }
             TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
