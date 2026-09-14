@@ -372,6 +372,15 @@ Panel {
                 event.accepted = true
               }
             }
+            MouseArea {
+              anchors.fill: parent
+              acceptedButtons: Qt.NoButton
+              onWheel: function(wheel) {
+                var delta = wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.angleDelta.y / 120 * Style.space(36)
+                settingsScroll.contentY = Math.max(0, Math.min(settingsScroll.contentHeight - settingsScroll.height, settingsScroll.contentY - delta))
+                wheel.accepted = true
+              }
+            }
             Column {
               id: settingsContent
               x: Style.space(4); y: Style.space(6); width: parent.width - Style.space(8); spacing: Style.space(7)
