@@ -10,6 +10,12 @@ Install `aria2` using your system package manager, then use the plugin folder di
 omarchy plugin add /home/dki/Desktop/open-source/tugboat --enable
 ```
 
+To install from GitHub instead:
+
+```sh
+omarchy plugin add https://github.com/korex-f/tugboat.git --enable
+```
+
 The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses a free loopback port unless configured otherwise, writes a mode-`0600` aria2 configuration, and enables a user systemd service. No aria2 configuration is required.
 
 ## Video and audio URLs
@@ -43,3 +49,16 @@ Start the daemon with `systemctl --user enable --now ~/.config/tugboat/tugboat-a
 ## Troubleshooting
 
 If the panel says aria2 is unavailable, install `aria2`, reopen the panel, and inspect `systemctl --user status tugboat-aria2.service`. An RPC authentication error generally means another local client changed the secret; remove only `~/.config/tugboat/` to reprovision, knowing that this resets the plugin’s aria2 session state.
+
+## Remove
+
+Disable and remove the plugin with:
+
+```sh
+omarchy plugin remove io.github.dki.tugboat
+```
+
+This removes the plugin only. To also remove Tugboat's local aria2 service,
+configuration, and download history, run `systemctl --user disable --now
+tugboat-aria2.service` and then remove `~/.config/tugboat/`. Downloaded files
+in your download directory are not removed.
