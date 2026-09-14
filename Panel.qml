@@ -165,7 +165,10 @@ Panel {
   function refreshAriaInfo() { if (!ariaInfoProc.running) { ariaInfoProc.command = ctl(["info"]); ariaInfoProc.running = true } }
   function restartAria() { if (restartingAria) return; restartingAria = true; restartAriaProc.command = ctl(["restart"]); restartAriaProc.running = true }
   function setAutoStart(enabled) { if (!autoStartProc.running) { autoStartProc.command = ctl(["auto-start", enabled ? "on" : "off"]); autoStartProc.running = true } }
-  function openPluginConfig() { Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/.config/omarchy/shell.json"]) }
+  function openPluginConfig() {
+    var path = Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "nvim " + Util.shellQuote(path)])
+  }
   function notify(title, body, urgency) { notifyProc.command = ["notify-send", "-a", "Tugboat", "-u", urgency || "normal", title, body]; notifyProc.running = true }
   function open() { root.controller.show(); refresh() }
   function close() { root.controller.hide() }
@@ -377,7 +380,7 @@ Panel {
               Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               Item { width: parent.width; height: Style.space(24)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(8) }
-                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; tooltipText: "Edit Tugboat settings in shell.json"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.openPluginConfig() }
+                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.openPluginConfig() }
               }
               Text { text: "Applies when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               PanelSeparator { foreground: root.fg }
@@ -392,7 +395,7 @@ Panel {
                   Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.setAutoStart(!root.ariaInfo.autoStart) }
                 }
                 Item { width: parent.width; height: Style.space(24)
-                  Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; tooltipText: "Restart the local aria2 service"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: root.restartAria() }
+                  Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: root.restartAria() }
                 }
               }
               Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.advancedVisible = !root.advancedVisible }
@@ -422,7 +425,7 @@ Panel {
               PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
               Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: root.ariaInfo.version || "aria2"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-              Item { width: 1; height: Style.space(4) }
+              Item { width: 1; height: Style.space(24) }
             }
             TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
           }
