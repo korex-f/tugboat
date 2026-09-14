@@ -223,12 +223,19 @@ Panel {
     open: root.opened
     focusTarget: keys
     contentWidth: panel.fittedContentWidth(Style.space(520))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight)
+    contentHeight: panel.fittedContentHeight(mainContent.measuredHeight)
     PanelKeyCatcher { id: keys; anchors.fill: parent; clip: true; onCloseRequested: root.close(); onTabRequested: function(d) { root.switchPanel(d) }
       Column {
-        id: content
+        id: mainContent
         width: parent.width
         spacing: Style.space(10)
+        property real measuredHeight: {
+          var total = 0, visibleCount = 0
+          for (var i = 0; i < children.length; i++) {
+            if (children[i].visible) { total += children[i].height; visibleCount++ }
+          }
+          return total + Math.max(0, visibleCount - 1) * spacing
+        }
         Item {
           width: parent.width; height: Style.space(50)
           Row {
@@ -283,7 +290,7 @@ Panel {
           delegate: BorderSurface {
             required property var payload
             property var modelData: payload
-            width: content.width; height: Style.space(96); radius: Style.space(5); color: root.surface; borderSpec: root.surfaceBorder
+            width: mainContent.width; height: Style.space(96); radius: Style.space(5); color: root.surface; borderSpec: root.surfaceBorder
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(10); spacing: Style.space(5)
               Row { width: parent.width; spacing: Style.space(7)
                 Text { width: parent.width - typeBadge.implicitWidth - Style.space(7); text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
@@ -350,10 +357,18 @@ Panel {
           }
           PanelSeparator { anchors.top: settingsHeader.bottom; foreground: root.fg }
           Flickable {
+            id: settingsScroll
             anchors.top: settingsHeader.bottom; anchors.topMargin: Style.space(8)
             anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
             contentWidth: width; contentHeight: settingsContent.implicitHeight + Style.space(12)
-            clip: true; interactive: contentHeight > height; flickableDirection: Flickable.VerticalFlick; boundsBehavior: Flickable.StopAtBounds
+            clip: true; interactive: true; flickableDirection: Flickable.VerticalFlick; boundsBehavior: Flickable.StopAtBounds
+            WheelHandler {
+              onWheel: function(event) {
+                var delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * Style.space(36)
+                settingsScroll.contentY = Math.max(0, Math.min(settingsScroll.contentHeight - settingsScroll.height, settingsScroll.contentY - delta))
+                event.accepted = true
+              }
+            }
             Column {
               id: settingsContent
               x: Style.space(4); y: Style.space(6); width: parent.width - Style.space(8); spacing: Style.space(7)
@@ -362,7 +377,7 @@ Panel {
               Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               Item { width: parent.width; height: Style.space(24)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(8) }
-                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; tooltipText: "Edit Tugboat settings in shell.json"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.openPluginConfig() }
+                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; tooltipText: "Edit Tugboat settings in shell.json"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.openPluginConfig() }
               }
               Text { text: "Applies when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               PanelSeparator { foreground: root.fg }
@@ -371,11 +386,15 @@ Panel {
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Status"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
                 Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaOnline ? "● Online" : "● Offline"; color: root.ariaOnline ? root.accent : Color.urgent; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               }
-              Item { width: parent.width; height: Style.space(24)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.setAutoStart(!root.ariaInfo.autoStart) }
+              Column { width: parent.width; spacing: Style.space(5)
+                Item { width: parent.width; height: Style.space(24)
+                  Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                  Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.setAutoStart(!root.ariaInfo.autoStart) }
+                }
+                Item { width: parent.width; height: Style.space(24)
+                  Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; tooltipText: "Restart the local aria2 service"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: root.restartAria() }
+                }
               }
-              Button { text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; enabled: !root.restartingAria; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.restartAria() }
               Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.advancedVisible = !root.advancedVisible }
               Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(4)
                 Item { width: parent.width; height: Style.space(22)
