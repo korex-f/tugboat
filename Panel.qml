@@ -171,12 +171,23 @@ Panel {
   }
   function notify(title, body, urgency) { notifyProc.command = ["notify-send", "-a", "Tugboat", "-u", urgency || "normal", title, body]; notifyProc.running = true }
   function open() { root.controller.show(); refresh() }
-  function close() { root.controller.hide() }
+  function resetSettingsView() {
+    settingsVisible = false
+    detailsVisible = false
+    advancedVisible = false
+    settingsScroll.contentY = 0
+  }
+  function scrollSettings(amount) {
+    var maximum = Math.max(0, settingsScroll.contentHeight - settingsScroll.height)
+    settingsScroll.contentY = Math.max(0, Math.min(maximum, settingsScroll.contentY + amount))
+  }
+  function close() { resetSettingsView(); root.controller.hide() }
   function toggle() { if (root.opened) close(); else open() }
   function closeForPopoutSwitch() { close() }
   function switchPanel(direction) { return bar && typeof bar.switchPanelFrom === "function" ? bar.switchPanelFrom(hostWidget || root, direction) : false }
 
   Component.onCompleted: { provision(); refreshAriaInfo(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true }
+  onOpenedChanged: if (!opened) resetSettingsView()
   Timer { interval: 1500; running: true; repeat: true; onTriggered: root.refresh() }
   ListModel { id: queueModel }
   Process {
@@ -227,7 +238,17 @@ Panel {
     focusTarget: keys
     contentWidth: panel.fittedContentWidth(Style.space(520))
     contentHeight: panel.fittedContentHeight(mainContent.measuredHeight)
-    PanelKeyCatcher { id: keys; anchors.fill: parent; clip: true; onCloseRequested: root.close(); onTabRequested: function(d) { root.switchPanel(d) }
+    PanelKeyCatcher {
+      id: keys
+      anchors.fill: parent
+      clip: true
+      onCloseRequested: root.close()
+      onTabRequested: function(d) { root.switchPanel(d) }
+      // Tugboat uses the requested reversed vim mapping here: J scrolls up,
+      // K scrolls down. The shared catcher consumes these keys first.
+      onMoveRequested: function(dx, dy) {
+        if (root.settingsVisible && dy !== 0) root.scrollSettings(-dy * Style.space(42))
+      }
       Column {
         id: mainContent
         width: parent.width
@@ -368,17 +389,8 @@ Panel {
             WheelHandler {
               onWheel: function(event) {
                 var delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * Style.space(36)
-                settingsScroll.contentY = Math.max(0, Math.min(settingsScroll.contentHeight - settingsScroll.height, settingsScroll.contentY - delta))
+                root.scrollSettings(-delta)
                 event.accepted = true
-              }
-            }
-            MouseArea {
-              anchors.fill: parent
-              acceptedButtons: Qt.NoButton
-              onWheel: function(wheel) {
-                var delta = wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.angleDelta.y / 120 * Style.space(36)
-                settingsScroll.contentY = Math.max(0, Math.min(settingsScroll.contentHeight - settingsScroll.height, settingsScroll.contentY - delta))
-                wheel.accepted = true
               }
             }
             Column {
@@ -437,6 +449,18 @@ Panel {
               Item { width: 1; height: Style.space(24) }
             }
             TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+            // Keep the wheel target above buttons and text controls. It does
+            // not accept clicks, so normal Settings actions remain clickable.
+            MouseArea {
+              anchors.fill: parent
+              z: 10
+              acceptedButtons: Qt.NoButton
+              onWheel: function(wheel) {
+                var delta = wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.angleDelta.y / 120 * Style.space(36)
+                root.scrollSettings(-delta)
+                wheel.accepted = true
+              }
+            }
           }
         }
       }
