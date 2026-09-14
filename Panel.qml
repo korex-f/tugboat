@@ -27,6 +27,9 @@ Panel {
   property bool ariaOnline: false
   property bool advancedVisible: false
   property bool restartingAria: false
+  property string selectedGid: ""
+  property bool shortcutsVisible: false
+  property int settingsFocusIndex: -1
   property var ariaInfo: ({ port: "—", authenticated: false, autoStart: false, version: "aria2" })
   property bool busy: false
   property var previousStatus: ({})
@@ -46,6 +49,7 @@ Panel {
   readonly property int pausedCount: allTransfers.filter(function(x) { return x.status === "paused" }).length
   readonly property int clearableCount: allTransfers.filter(function(x) { return x.status === "complete" || x.status === "error" }).length
   readonly property int aggregateSpeed: allTransfers.reduce(function(n, x) { return n + Number(x.downloadSpeed || 0) }, 0)
+  readonly property bool textInputActive: addField.activeFocus || browserPayloadArea.activeFocus || detailsArea.activeFocus
   property string speedLimitValue: "0"
   readonly property var speedLimitOptions: [{ label: "Unlimited", value: "0" }, { label: "256 KiB/s", value: "256" }, { label: "512 KiB/s", value: "512" }, { label: "1 MiB/s", value: "1024" }, { label: "2 MiB/s", value: "2048" }, { label: "5 MiB/s", value: "5120" }, { label: "10 MiB/s", value: "10240" }]
 
@@ -134,6 +138,39 @@ Panel {
       if (index < 0) queueModel.append({ gid: item.gid, payload: item })
       else if (JSON.stringify(queueModel.get(index).payload) !== JSON.stringify(item)) queueModel.setProperty(index, "payload", item)
     }
+    if (queueModel.count === 0) selectedGid = ""
+    else if (selectedGid !== "" && queueIndexFor(selectedGid) < 0) selectedGid = ""
+  }
+  function queueIndexFor(gid) {
+    for (var i = 0; i < queueModel.count; i++) if (queueModel.get(i).gid === gid) return i
+    return -1
+  }
+  function selectedTransfer() {
+    var index = queueIndexFor(selectedGid)
+    return index >= 0 ? queueModel.get(index).payload : null
+  }
+  function moveQueueSelection(delta) {
+    if (queueModel.count === 0) return
+    var index = queueIndexFor(selectedGid)
+    if (index < 0) index = delta > 0 ? 0 : queueModel.count - 1
+    else index = Math.max(0, Math.min(queueModel.count - 1, index + delta))
+    selectedGid = queueModel.get(index).gid
+    Qt.callLater(function() { keepSelectedQueueRowVisible(index) })
+  }
+  function keepSelectedQueueRowVisible(index) {
+    var item = queueRepeater.itemAt(index)
+    if (!item) return
+    var top = item.y, bottom = top + item.height
+    if (top < queueScroll.contentY) queueScroll.contentY = top
+    else if (bottom > queueScroll.contentY + queueScroll.height) queueScroll.contentY = bottom - queueScroll.height
+  }
+  function toggleSelectedTransfer() {
+    var item = selectedTransfer()
+    if (item) doAction(item.status === "active" ? "pause" : "resume", item.gid)
+  }
+  function removeSelectedTransfer() {
+    var item = selectedTransfer()
+    if (item) doAction("remove", item.gid)
   }
   function provision() {
     var port = settings && settings.rpcPort ? String(settings.rpcPort) : "0"
@@ -180,6 +217,19 @@ Panel {
   function scrollSettings(amount) {
     var maximum = Math.max(0, settingsScroll.contentHeight - settingsScroll.height)
     settingsScroll.contentY = Math.max(0, Math.min(maximum, settingsScroll.contentY + amount))
+  }
+  function closeSettingsView() { settingsVisible = false; detailsVisible = false; settingsFocusIndex = -1 }
+  function openSettings() { settingsVisible = true; detailsVisible = false; refreshAriaInfo() }
+  function focusSettingsControl(direction) {
+    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
+    if (controls.length === 0) return
+    settingsFocusIndex = (settingsFocusIndex + direction + controls.length) % controls.length
+    controls[settingsFocusIndex].forceActiveFocus()
+  }
+  function activateSettingsFocus() {
+    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
+    if (settingsFocusIndex >= 0 && settingsFocusIndex < controls.length && controls[settingsFocusIndex].enabled)
+      controls[settingsFocusIndex].clicked()
   }
   function close() { resetSettingsView(); root.controller.hide() }
   function toggle() { if (root.opened) close(); else open() }
@@ -242,12 +292,32 @@ Panel {
       id: keys
       anchors.fill: parent
       clip: true
-      onCloseRequested: root.close()
-      onTabRequested: function(d) { root.switchPanel(d) }
-      // Tugboat uses the requested reversed vim mapping here: J scrolls up,
-      // K scrolls down. The shared catcher consumes these keys first.
+      blocked: root.textInputActive
+      onCloseRequested: { if (root.settingsVisible || root.detailsVisible) root.closeSettingsView(); else root.close() }
+      onTabRequested: function(d) { if (root.settingsVisible) root.focusSettingsControl(d); else root.switchPanel(d) }
       onMoveRequested: function(dx, dy) {
-        if (root.settingsVisible && dy !== 0) root.scrollSettings(-dy * Style.space(42))
+        if (root.textInputActive || dy === 0) return
+        if (root.settingsVisible) root.scrollSettings(dy * Style.space(42))
+        else root.moveQueueSelection(dy)
+      }
+      onDeleteRequested: { if (!root.textInputActive && !root.settingsVisible && !root.detailsVisible) root.removeSelectedTransfer() }
+      onActivateRequested: { if (root.settingsVisible) root.activateSettingsFocus() }
+      onTextKey: function(text) {
+        if (root.textInputActive) return
+        if (root.shortcutsVisible) { if (text === "?" || text === "q") root.shortcutsVisible = false; return }
+        if (text === "?") { root.shortcutsVisible = true; return }
+        if (root.settingsVisible) {
+          if (text === "q") root.closeSettingsView()
+          else if (text === "g") settingsScroll.contentY = 0
+          else if (text === "G") settingsScroll.contentY = Math.max(0, settingsScroll.contentHeight - settingsScroll.height)
+          return
+        }
+        if (root.detailsVisible) return
+        if (text === "a") { addField.forceActiveFocus(); return }
+        if (text === "p") { root.toggleSelectedTransfer(); return }
+        if (text === "r") { root.refresh(); return }
+        if (text === "c") { root.clearFinished(); return }
+        if (text === "s") { root.openSettings(); return }
       }
       Column {
         id: mainContent
@@ -271,7 +341,7 @@ Panel {
           Row {
             anchors.right: parent.right; anchors.top: parent.top; spacing: Style.space(4)
             Text { text: "↓ " + root.humanSpeed(root.aggregateSpeed); color: root.fg; font.family: root.fontFamily; font.bold: true }
-            PanelActionButton { iconText: "󰒓"; tooltipText: "Settings"; onClicked: { root.settingsVisible = true; root.refreshAriaInfo() } }
+            PanelActionButton { iconText: "󰒓"; tooltipText: "Settings"; onClicked: root.openSettings() }
           }
           Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.downloadCount + " download" + (root.downloadCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
@@ -279,7 +349,7 @@ Panel {
         Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
-          TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL or magnet link"; onAccepted: root.addUrl() }
+          TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL or magnet link"; onAccepted: root.addUrl(); Keys.onEscapePressed: root.close() }
           Button { id: addButton; iconText: "＋"; text: "Add"; onClicked: root.addUrl() }
         }
         Text { text: "Drop a .torrent anywhere in this panel"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
@@ -309,12 +379,28 @@ Panel {
           Button { visible: root.clearableCount > 0; text: "Clear " + root.clearableCount; tooltipText: "Clear completed and failed items"; onClicked: root.clearFinished() }
         }
         PanelSeparator { foreground: root.fg }
-        Repeater {
-          model: queueModel
-          delegate: BorderSurface {
+        Flickable {
+          id: queueScroll
+          visible: queueModel.count > 0
+          width: parent.width
+          height: Math.min(queueList.implicitHeight, Style.space(300))
+          contentWidth: width
+          contentHeight: queueList.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          Column {
+            id: queueList
+            width: queueScroll.width
+            spacing: Style.space(10)
+            Repeater {
+              id: queueRepeater
+              model: queueModel
+              delegate: BorderSurface {
             required property var payload
             property var modelData: payload
-            width: mainContent.width; height: Style.space(96); radius: Style.space(5); color: root.surface; borderSpec: root.surfaceBorder
+            width: queueList.width; height: Style.space(96); radius: Style.space(5)
+            color: root.selectedGid === modelData.gid ? root.raisedSurface : root.surface
+            borderSpec: root.selectedGid === modelData.gid ? Border.controlSpec("selected", root.fg, root.accent) : root.surfaceBorder
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(10); spacing: Style.space(5)
               Row { width: parent.width; spacing: Style.space(7)
                 Text { width: parent.width - typeBadge.implicitWidth - Style.space(7); text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
@@ -347,6 +433,8 @@ Panel {
             }
           }
         }
+          }
+        }
         Column {
           visible: root.downloadCount === 0 && root.errorText === ""
           width: parent.width; spacing: Style.space(3)
@@ -365,6 +453,7 @@ Panel {
             onChanged: function(value) { root.speedLimitValue = value; root.doAction("limit", value) }
           }
         }
+        Text { text: "j/k select  s settings  ? help"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
       }
       DropArea { anchors.fill: parent; z: 0; onDropped: function(drop) { if (drop.urls.length) root.addTorrent(root.pathFromUrl(drop.urls[0])) } }
       Rectangle {
@@ -377,7 +466,7 @@ Panel {
             anchors.top: parent.top; width: parent.width; height: Style.space(28)
             Text { text: root.detailsVisible ? "Download details" : "Tugboat settings"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.title; font.bold: true }
             Item { width: parent.width - closeSettings.width - parent.children[0].implicitWidth; height: 1 }
-            PanelActionButton { id: closeSettings; iconText: "󰅖"; tooltipText: "Close"; onClicked: { root.settingsVisible = false; root.detailsVisible = false } }
+            PanelActionButton { id: closeSettings; iconText: "󰅖"; tooltipText: "Close"; onClicked: root.closeSettingsView() }
           }
           PanelSeparator { anchors.top: settingsHeader.bottom; foreground: root.fg }
           Flickable {
@@ -401,7 +490,7 @@ Panel {
               Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               Item { width: parent.width; height: Style.space(24)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(8) }
-                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.openPluginConfig() }
+                Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; bordered: true; focusable: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 0; root.openPluginConfig() } }
               }
               Text { text: "Applies when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               PanelSeparator { foreground: root.fg }
@@ -413,13 +502,13 @@ Panel {
               Column { width: parent.width; spacing: Style.space(5)
                 Item { width: parent.width; height: Style.space(24)
                   Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                  Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.setAutoStart(!root.ariaInfo.autoStart) }
+                  Button { id: autoStartButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 1; root.setAutoStart(!root.ariaInfo.autoStart) } }
                 }
                 Item { width: parent.width; height: Style.space(24)
-                  Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; bordered: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: root.restartAria() }
+                  Button { id: restartAriaButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; bordered: true; focusable: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: { root.settingsFocusIndex = 2; root.restartAria() } }
                 }
               }
-              Button { text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.advancedVisible = !root.advancedVisible }
+              Button { id: advancedButton; text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 3; root.advancedVisible = !root.advancedVisible } }
               Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(4)
                 Item { width: parent.width; height: Style.space(22)
                   Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC port"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
@@ -434,21 +523,22 @@ Panel {
               PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg }
               Item { width: parent.width; height: Style.space(28)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chrome / Brave"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.connect("chrome") }
+                Button { id: chromeConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 4; root.connect("chrome") } }
               }
               Item { width: parent.width; height: Style.space(28)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.connect("firefox") }
+                Button { id: firefoxConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 5; root.connect("firefox") } }
               }
               Text { text: "Connect opens the extension store and local setup payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-              TextArea { visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+              TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
               PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
               Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: root.ariaInfo.version || "aria2"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Text { text: "j/k scroll  esc back  ? help"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Item { width: 1; height: Style.space(24) }
             }
-            TextArea { visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true }
+            TextArea { id: detailsArea; visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
             // Keep the wheel target above buttons and text controls. It does
             // not accept clicks, so normal Settings actions remain clickable.
             MouseArea {
@@ -462,6 +552,28 @@ Panel {
               }
             }
           }
+        }
+      }
+      BorderSurface {
+        visible: root.shortcutsVisible
+        z: 10
+        anchors.centerIn: parent
+        width: Math.min(parent.width - Style.space(32), Style.space(350))
+        height: shortcutsText.implicitHeight + Style.space(24)
+        radius: Style.space(5)
+        color: Color.popups.background
+        borderSpec: root.surfaceBorder
+        Text {
+          id: shortcutsText
+          anchors.fill: parent
+          anchors.margins: Style.space(12)
+          text: root.settingsVisible
+            ? "SHORTCUTS\n\nj / k   scroll down / up\ng / G   top / bottom\nTab     next action\nEnter   activate action\nEsc, q  back\n?       close help"
+            : "SHORTCUTS\n\na       add link\nj / k   select download\np       pause / resume selected\nx       remove selected\nr       refresh\nc       clear finished\ns       settings\n?       close help"
+          color: root.fg
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          lineHeight: 1.3
         }
       }
     }
