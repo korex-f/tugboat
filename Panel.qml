@@ -346,7 +346,7 @@ Panel {
           Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.downloadCount + " download" + (root.downloadCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
         PanelSeparator { foreground: root.fg }
-        Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; color: Color.urgent; wrapMode: Text.WordWrap }
+        Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; textFormat: Text.PlainText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
           TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL or magnet link"; onAccepted: root.addUrl(); Keys.onEscapePressed: root.close() }
@@ -361,7 +361,7 @@ Panel {
           color: root.surface
           Column {
             anchors.fill: parent; anchors.margins: Style.space(8); spacing: Style.space(5)
-            Text { width: parent.width; text: root.mediaTitle; color: root.fg; elide: Text.ElideRight }
+            Text { width: parent.width; text: root.mediaTitle; textFormat: Text.PlainText; color: root.fg; elide: Text.ElideRight }
             Row { spacing: Style.space(6)
               ComboBox { id: mediaFormatPicker; width: Style.space(210); model: root.mediaFormats; textRole: "label"; onActivated: root.selectedMediaFormat = root.mediaFormats[currentIndex].id }
               Button { text: "Download"; onClicked: root.startMedia() }
@@ -403,16 +403,16 @@ Panel {
             borderSpec: root.selectedGid === modelData.gid ? Border.controlSpec("selected", root.fg, root.accent) : root.surfaceBorder
             Column { anchors.left: parent.left; anchors.right: actions.left; anchors.verticalCenter: parent.verticalCenter; anchors.margins: Style.space(10); spacing: Style.space(5)
               Row { width: parent.width; spacing: Style.space(7)
-                Text { width: parent.width - typeBadge.implicitWidth - Style.space(7); text: root.itemName(modelData); color: root.fg; elide: Text.ElideRight; font.bold: true }
+                Text { width: parent.width - typeBadge.implicitWidth - Style.space(7); text: root.itemName(modelData); textFormat: Text.PlainText; color: root.fg; elide: Text.ElideRight; font.bold: true }
                 BorderSurface { id: typeBadge; implicitWidth: typeText.implicitWidth + Style.space(8); implicitHeight: typeText.implicitHeight + Style.space(3); radius: Style.space(3); color: root.raisedSurface
                   Text { id: typeText; anchors.centerIn: parent; text: root.typeLabel(modelData); color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                 }
               }
-              Text { width: parent.width; text: root.itemMeta(modelData); color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+              Text { width: parent.width; text: root.itemMeta(modelData); textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
               Rectangle { width: parent.width; height: Style.space(5); radius: height / 2; color: root.raisedSurface
                 Rectangle { width: parent.width * root.percent(modelData) / 100; height: parent.height; radius: parent.radius; color: root.accent }
               }
-              Text { text: root.stateLabel(modelData); color: modelData.status === "error" ? Color.urgent : root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+              Text { text: root.stateLabel(modelData); textFormat: Text.PlainText; color: modelData.status === "error" ? Color.urgent : root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true }
             }
             Row { id: actions; anchors.right: parent.right; anchors.rightMargin: Style.space(8); anchors.verticalCenter: parent.verticalCenter; spacing: Style.space(2)
               PanelActionButton {
@@ -489,7 +489,7 @@ Panel {
               PanelSectionHeader { text: "DOWNLOADS"; foreground: root.fg }
               Text { text: "Download directory"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               Item { width: parent.width; height: Style.space(24)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(8) }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: settings && settings.downloadDirectory ? settings.downloadDirectory : "~/Downloads"; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle; width: parent.width - openConfig.width - Style.space(8) }
                 Button { id: openConfig; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open config"; bordered: true; focusable: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 0; root.openPluginConfig() } }
               }
               Text { text: "Applies when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
@@ -512,7 +512,7 @@ Panel {
               Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(4)
                 Item { width: parent.width; height: Style.space(22)
                   Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC port"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.port || "—"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+                  Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.port || "—"; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
                 }
                 Item { width: parent.width; height: Style.space(22)
                   Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC authentication"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
@@ -530,15 +530,15 @@ Panel {
                 Button { id: firefoxConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 5; root.connect("firefox") } }
               }
               Text { text: "Connect opens the extension store and local setup payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-              TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
+              TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; textFormat: TextEdit.PlainText; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
               PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
               Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
-              Text { text: root.ariaInfo.version || "aria2"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Text { text: root.ariaInfo.version || "aria2"; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: "j/k scroll  esc back  ? help"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Item { width: 1; height: Style.space(24) }
             }
-            TextArea { id: detailsArea; visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
+            TextArea { id: detailsArea; visible: root.detailsVisible; width: parent.width; height: visible ? Math.max(Style.space(240), implicitHeight) : 0; readOnly: true; text: root.selectedTransfer ? JSON.stringify(root.selectedTransfer, null, 2) : ""; textFormat: TextEdit.PlainText; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
             // Keep the wheel target above buttons and text controls. It does
             // not accept clicks, so normal Settings actions remain clickable.
             MouseArea {
