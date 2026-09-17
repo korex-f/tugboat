@@ -198,7 +198,7 @@ Panel {
     mediaStartProc.command = mediaCtl(["start", mediaUrl, "--title", mediaTitle, "--format", selectedMediaFormat, "--directory", directory]); mediaStartProc.running = true
   }
   function addTorrent(file) { addProc.command = ctl(["add", "--torrent", file]); addProc.running = true }
-  function connect(browser) { browserProc.command = ctl(["browser", "--browser", browser]); browserProc.running = true }
+  function connect(browser) { browserPayload = ""; browserProc.command = ctl(["browser", "--browser", browser]); browserProc.running = true }
   function refreshAriaInfo() { if (!ariaInfoProc.running) { ariaInfoProc.command = ctl(["info"]); ariaInfoProc.running = true } }
   function restartAria() { if (restartingAria) return; restartingAria = true; restartAriaProc.command = ctl(["restart"]); restartAriaProc.running = true }
   function setAutoStart(enabled) { if (!autoStartProc.running) { autoStartProc.command = ctl(["auto-start", enabled ? "on" : "off"]); autoStartProc.running = true } }
@@ -212,13 +212,14 @@ Panel {
     settingsVisible = false
     detailsVisible = false
     advancedVisible = false
+    browserPayload = ""
     settingsScroll.contentY = 0
   }
   function scrollSettings(amount) {
     var maximum = Math.max(0, settingsScroll.contentHeight - settingsScroll.height)
     settingsScroll.contentY = Math.max(0, Math.min(maximum, settingsScroll.contentY + amount))
   }
-  function closeSettingsView() { settingsVisible = false; detailsVisible = false; settingsFocusIndex = -1 }
+  function closeSettingsView() { settingsVisible = false; detailsVisible = false; browserPayload = ""; settingsFocusIndex = -1 }
   function openSettings() { settingsVisible = true; detailsVisible = false; refreshAriaInfo() }
   function focusSettingsControl(direction) {
     var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]

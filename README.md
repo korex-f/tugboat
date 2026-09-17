@@ -38,7 +38,14 @@ The panel is organized as a compact download center: a live aria2 status header,
 
 ## Browser connection
 
-Choose **Connect** beside the browser family you use. **Chromium browsers** covers Chrome, Brave, Vivaldi, Edge, Opera, and Chromium; **Firefox-based browsers** covers Firefox and Zen. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.
+Choose **Connect** beside the browser family you use. **Chromium browsers** covers Chrome, Brave, Vivaldi, Edge, Opera, and Chromium; **Firefox-based browsers** covers Firefox and Zen. It opens the relevant store page and displays a one-time local connection payload.
+
+1. Install the extension from the store page that opens, then open its Options or Settings page.
+2. Copy the payload’s `rpcUrl` value into the extension field named **RPC URL**, **JSON-RPC URL**, or similar. Keep the `/jsonrpc` suffix.
+3. Copy `rpcSecret` into the extension field named **RPC secret**, **Secret key**, or **Token**. Use the raw value as shown; do not add `token:` unless that extension explicitly asks for it.
+4. Save the extension settings and send a small download or magnet link to confirm that it reaches Tugboat.
+
+The payload is shown only for the current handoff. It is cleared when you close Settings or Tugboat, and it appears again only after you click **Connect**. Keep the secret private: it authorizes local aria2 RPC requests.
 
 The extension-store Install button must be clicked by the user. This plugin does not sideload or inject extensions. It also does not install a native-messaging host because neither supported store flow requires one for direct local aria2 RPC; if an extension build explicitly requires one, use that extension’s signed, documented host package.
 
