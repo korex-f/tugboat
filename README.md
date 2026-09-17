@@ -36,7 +36,7 @@ The panel is organized as a compact download center: a live aria2 status header,
 
 ## Browser connection
 
-Choose **Connect Chrome** or **Connect Firefox**. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.
+Choose **Connect** beside the browser family you use. **Chromium browsers** covers Chrome, Brave, Vivaldi, Edge, Opera, and Chromium; **Firefox-based browsers** covers Firefox and Zen. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.
 
 The extension-store Install button must be clicked by the user. This plugin does not sideload or inject extensions. It also does not install a native-messaging host because neither supported store flow requires one for direct local aria2 RPC; if an extension build explicitly requires one, use that extension’s signed, documented host package.
 

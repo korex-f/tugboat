@@ -522,11 +522,11 @@ Panel {
               PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg }
               Item { width: parent.width; height: Style.space(28)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chrome / Brave"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chromium browsers"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
                 Button { id: chromeConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 4; root.connect("chrome") } }
               }
               Item { width: parent.width; height: Style.space(28)
-                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox-based browsers"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
                 Button { id: firefoxConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 5; root.connect("firefox") } }
               }
               Text { text: "Connect opens the extension store and local setup payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
