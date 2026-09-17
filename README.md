@@ -16,6 +16,8 @@ To install from GitHub instead:
 omarchy plugin add https://github.com/korex-f/tugboat.git --enable
 ```
 
+With an interactive `--enable` install, Omarchy asks whether to place Tugboat on the left, center, or right of the bar. This is the standard placement flow for bar-widget plugins; non-interactive installs use Tugboat's right-side default.
+
 The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses a free loopback port unless configured otherwise, writes a mode-`0600` aria2 configuration, and enables a user systemd service. No aria2 configuration is required.
 
 ## Video and audio URLs
@@ -39,10 +41,6 @@ The panel is organized as a compact download center: a live aria2 status header,
 Choose **Connect** beside the browser family you use. **Chromium browsers** covers Chrome, Brave, Vivaldi, Edge, Opera, and Chromium; **Firefox-based browsers** covers Firefox and Zen. It opens the relevant store page and reveals a one-time local JSON payload containing the RPC URL and secret. Paste those values into the extension’s connection options after installing it.
 
 The extension-store Install button must be clicked by the user. This plugin does not sideload or inject extensions. It also does not install a native-messaging host because neither supported store flow requires one for direct local aria2 RPC; if an extension build explicitly requires one, use that extension’s signed, documented host package.
-
-## Bar placement
-
-During an interactive installation, Omarchy asks where to place Tugboat. You can change it later from **Settings → Panel → Bar placement** and choose **Left**, **Center**, or **Right**. This moves only Tugboat and leaves the rest of the bar unchanged.
 
 The daemon listens only on `127.0.0.1`. The secret is never logged; it is only read for local RPC calls and rendered in the explicitly requested browser handoff field.
 
