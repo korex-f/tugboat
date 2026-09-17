@@ -40,6 +40,10 @@ Choose **Connect** beside the browser family you use. **Chromium browsers** cove
 
 The extension-store Install button must be clicked by the user. This plugin does not sideload or inject extensions. It also does not install a native-messaging host because neither supported store flow requires one for direct local aria2 RPC; if an extension build explicitly requires one, use that extension’s signed, documented host package.
 
+## Bar placement
+
+During an interactive installation, Omarchy asks where to place Tugboat. You can change it later from **Settings → Panel → Bar placement** and choose **Left**, **Center**, or **Right**. This moves only Tugboat and leaves the rest of the bar unchanged.
+
 The daemon listens only on `127.0.0.1`. The secret is never logged; it is only read for local RPC calls and rendered in the explicitly requested browser handoff field.
 
 ## Manual fallback

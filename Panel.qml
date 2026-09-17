@@ -202,6 +202,9 @@ Panel {
   function refreshAriaInfo() { if (!ariaInfoProc.running) { ariaInfoProc.command = ctl(["info"]); ariaInfoProc.running = true } }
   function restartAria() { if (restartingAria) return; restartingAria = true; restartAriaProc.command = ctl(["restart"]); restartAriaProc.running = true }
   function setAutoStart(enabled) { if (!autoStartProc.running) { autoStartProc.command = ctl(["auto-start", enabled ? "on" : "off"]); autoStartProc.running = true } }
+  function moveBarPlacement(section) {
+    Quickshell.execDetached(["omarchy", "bar", "move", root.moduleName, "--section", section])
+  }
   function openPluginConfig() {
     var path = Quickshell.env("HOME") + "/.config/omarchy/shell.json"
     Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "nvim " + Util.shellQuote(path)])
@@ -221,13 +224,13 @@ Panel {
   function closeSettingsView() { settingsVisible = false; detailsVisible = false; settingsFocusIndex = -1 }
   function openSettings() { settingsVisible = true; detailsVisible = false; refreshAriaInfo() }
   function focusSettingsControl(direction) {
-    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
+    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton, placementLeftButton, placementCenterButton, placementRightButton]
     if (controls.length === 0) return
     settingsFocusIndex = (settingsFocusIndex + direction + controls.length) % controls.length
     controls[settingsFocusIndex].forceActiveFocus()
   }
   function activateSettingsFocus() {
-    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
+    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton, placementLeftButton, placementCenterButton, placementRightButton]
     if (settingsFocusIndex >= 0 && settingsFocusIndex < controls.length && controls[settingsFocusIndex].enabled)
       controls[settingsFocusIndex].clicked()
   }
@@ -531,6 +534,15 @@ Panel {
               }
               Text { text: "Connect opens the extension store and local setup payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; textFormat: TextEdit.PlainText; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
+              PanelSeparator { foreground: root.fg }
+              PanelSectionHeader { text: "PANEL"; foreground: root.fg }
+              Text { text: "Bar placement"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+              Row { width: parent.width; spacing: Style.space(6)
+                Button { id: placementLeftButton; text: "Left"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(8); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 6; root.moveBarPlacement("left") } }
+                Button { id: placementCenterButton; text: "Center"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(8); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 7; root.moveBarPlacement("center") } }
+                Button { id: placementRightButton; text: "Right"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(8); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 8; root.moveBarPlacement("right") } }
+              }
+              Text { text: "Move Tugboat without changing any other bar widgets."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
               Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
