@@ -22,7 +22,9 @@ The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a ran
 
 ## Video and audio URLs
 
-Tugboat checks submitted URLs with yt-dlp. Ordinary file URLs, magnets, and torrents continue to aria2 unchanged. A URL recognized by yt-dlp opens a format picker with **Best quality**, **Audio only**, and the available resolutions for that item.
+Tugboat checks submitted URLs with yt-dlp. Ordinary file URLs, magnets, and torrents continue to aria2 unchanged. A URL recognized by yt-dlp opens a format picker with **Highest available quality**, **Audio only**, and the available resolutions for that item. Choosing a numbered resolution selects the best stream at or below that height, with audio merged by ffmpeg.
+
+Playlist URLs stay playlists. Tugboat creates a folder named after the playlist in the selected download directory and names each entry like `01. Video title.ext`, using yt-dlp's playlist index and title. The picker shows the detected video count before you start the job.
 
 yt-dlp uses its Python API and progress hooks; video jobs appear beside aria2 jobs in the same queue with the same progress, speed, ETA, pause, resume, remove, completion, and failure behavior. Raw media transfers are delegated to `aria2c` as yt-dlp’s external downloader.
 

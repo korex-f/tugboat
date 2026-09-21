@@ -19,6 +19,8 @@ Panel {
   property string mediaTitle: ""
   property var mediaFormats: []
   property string selectedMediaFormat: "best"
+  property bool mediaIsPlaylist: false
+  property int mediaPlaylistCount: 0
   property string errorText: "Starting aria2…"
   property string browserPayload: ""
   property bool settingsVisible: false
@@ -195,7 +197,9 @@ Panel {
   }
   function startMedia() {
     var directory = settings && settings.downloadDirectory ? String(settings.downloadDirectory) : "~/Downloads"
-    mediaStartProc.command = mediaCtl(["start", mediaUrl, "--title", mediaTitle, "--format", selectedMediaFormat, "--directory", directory]); mediaStartProc.running = true
+    var args = ["start", mediaUrl, "--title", mediaTitle, "--format", selectedMediaFormat, "--directory", directory]
+    if (mediaIsPlaylist) args.push("--playlist")
+    mediaStartProc.command = mediaCtl(args); mediaStartProc.running = true
   }
   function addTorrent(file) { addProc.command = ctl(["add", "--torrent", file]); addProc.running = true }
   function connect(browser) { browserPayload = ""; browserProc.command = ctl(["browser", "--browser", browser]); browserProc.running = true }
@@ -269,7 +273,7 @@ Panel {
   }
   Process { id: mediaDependencyProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) root.errorText=r.error } } }
   Process { id: mediaStatusProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); var next=r.items || []; for (var i=0; i<next.length; i++) { var item=next[i], was=root.previousMediaStatus[item.gid]; if (root.mediaStatusInitialized && !was && item.status === "active") root.notify("Video download started", root.itemName(item), "low"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "complete") root.notify("Video download complete", root.itemName(item), "normal"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "error") root.notify("Video download failed", root.itemName(item) + ": " + (item.errorMessage || "yt-dlp error"), "critical") }; var statuses={}; for (var j=0; j<next.length; j++) statuses[next[j].gid]=next[j].status; root.previousMediaStatus=statuses; root.mediaStatusInitialized=true; root.replaceTransfers(next, true) } } }
-  Process { id: mediaInspectProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) { root.errorText=r.error; return }; if (!r.media) { root.addRawUrl(root.mediaUrl); return }; root.mediaTitle=r.title; root.mediaFormats=[{id:"best",label:"Best quality"},{id:"audio",label:"Audio only"}].concat(r.formats || []); root.selectedMediaFormat="best"; root.mediaPickerVisible=true } } }
+  Process { id: mediaInspectProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) { root.errorText=r.error; return }; if (!r.media) { root.addRawUrl(root.mediaUrl); return }; root.mediaTitle=r.title; root.mediaIsPlaylist=Boolean(r.playlist); root.mediaPlaylistCount=Number(r.entryCount || 0); root.mediaFormats=[{id:"best",label:"Highest available quality"},{id:"audio",label:"Audio only"}].concat(r.formats || []); root.selectedMediaFormat="best"; root.mediaPickerVisible=true } } }
   Process { id: mediaStartProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.mediaPickerVisible=false; root.refresh() } } }
   Process { id: mediaActionProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
   Process { id: addProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.refresh() } } }
@@ -357,12 +361,13 @@ Panel {
         Rectangle {
           visible: root.mediaPickerVisible
           width: parent.width
-          height: visible ? Style.space(72) : 0
+          height: visible ? (root.mediaIsPlaylist ? Style.space(92) : Style.space(72)) : 0
           radius: Style.cornerRadius
           color: root.surface
           Column {
             anchors.fill: parent; anchors.margins: Style.space(8); spacing: Style.space(5)
             Text { width: parent.width; text: root.mediaTitle; textFormat: Text.PlainText; color: root.fg; elide: Text.ElideRight }
+            Text { visible: root.mediaIsPlaylist; width: parent.width; text: root.mediaPlaylistCount + " videos · saves in a numbered playlist folder"; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
             Row { spacing: Style.space(6)
               ComboBox { id: mediaFormatPicker; width: Style.space(210); model: root.mediaFormats; textRole: "label"; onActivated: root.selectedMediaFormat = root.mediaFormats[currentIndex].id }
               Button { text: "Download"; onClicked: root.startMedia() }

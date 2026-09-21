@@ -32,6 +32,8 @@ def dependency_error():
         return "ffmpeg is required for video/audio stream merging. Install ffmpeg, then reopen Tugboat."
     return None
 def public_formats(info):
+    entries = info.get("entries") or []
+    info = next((entry for entry in entries if entry), info)
     seen, out = set(), []
     for fmt in info.get("formats", []):
         height = fmt.get("height")
@@ -39,6 +41,10 @@ def public_formats(info):
         seen.add(height)
         out.append({"id": str(height), "label": f"{height}p"})
     return sorted(out, key=lambda x: int(x["id"]), reverse=True)[:6]
+
+def playlist_details(info):
+    entries = [entry for entry in (info.get("entries") or []) if entry]
+    return bool(entries or info.get("_type") == "playlist"), len(entries)
 def check(_):
     error = dependency_error()
     emit({"ok": not bool(error), "error": error or ""})
@@ -51,11 +57,12 @@ def inspect(url):
     import yt_dlp
     recognised = is_media_site(url)
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": False}) as ydl:
             info = ydl.extract_info(url, download=False)
         if not info or info.get("extractor_key") == "Generic":
             emit({"ok": True, "media": False}); return
-        emit({"ok": True, "media": True, "title": info.get("title", url), "formats": public_formats(info)})
+        playlist, entry_count = playlist_details(info)
+        emit({"ok": True, "media": True, "title": info.get("title", url), "formats": public_formats(info), "playlist": playlist, "entryCount": entry_count})
     except Exception as exc:
         if recognised:
             emit({"ok": False, "error": "yt-dlp could not extract this media URL: " + str(exc)})
@@ -76,9 +83,11 @@ def worker(job_id):
         elif state == "finished": update("processing", filename=data.get("filename") or job.get("filename", ""))
     fmt = job["format"]
     selector = "bestaudio/best" if fmt == "audio" else (f"bestvideo[height<={fmt}]+bestaudio/best[height<={fmt}]" if fmt.isdigit() else "bestvideo+bestaudio/best")
+    playlist = bool(job.get("playlist"))
+    filename_template = "%(playlist_title).200B/%(playlist_index)02d. %(title).200B.%(ext)s" if playlist else "%(title).200B.%(ext)s"
     options = {
-        "format": selector, "noplaylist": True, "quiet": True,
-        "outtmpl": str(Path(job["directory"]) / "%(title).200B.%(ext)s"),
+        "format": selector, "noplaylist": not playlist, "quiet": True,
+        "outtmpl": str(Path(job["directory"]) / filename_template),
         "progress_hooks": [hook], "merge_output_format": "mkv",
         # yt-dlp delegates media HTTP transfers to aria2c, retaining its
         # segmented downloader behaviour without changing Tugboat's RPC daemon.
@@ -95,7 +104,7 @@ def start(args):
     error = dependency_error()
     if error: emit({"ok": False, "error": error}); return
     job_id = uuid.uuid4().hex[:12]
-    job = {"id": job_id, "url": args.url, "title": args.title or args.url, "format": args.format, "directory": os.path.expanduser(args.directory or "~/Downloads"), "status": "queued", "downloaded": 0, "total": 0, "speed": 0, "eta": 0, "created": time.time()}
+    job = {"id": job_id, "url": args.url, "title": args.title or args.url, "format": args.format, "playlist": args.playlist, "directory": os.path.expanduser(args.directory or "~/Downloads"), "status": "queued", "downloaded": 0, "total": 0, "speed": 0, "eta": 0, "created": time.time()}
     jobs = load_jobs(); jobs[job_id] = job; save_jobs(jobs)
     process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "worker", job_id], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     job["pid"] = process.pid; jobs[job_id] = job; save_jobs(jobs)
@@ -133,7 +142,7 @@ def action(args):
 def main():
     parser = argparse.ArgumentParser(); sub = parser.add_subparsers(dest="cmd", required=True)
     x = sub.add_parser("inspect"); x.add_argument("url")
-    x = sub.add_parser("start"); x.add_argument("url"); x.add_argument("--title"); x.add_argument("--format", default="best"); x.add_argument("--directory")
+    x = sub.add_parser("start"); x.add_argument("url"); x.add_argument("--title"); x.add_argument("--format", default="best"); x.add_argument("--playlist", action="store_true"); x.add_argument("--directory")
     sub.add_parser("status")
     sub.add_parser("check")
     x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove", "resume-all", "clear-finished"]); x.add_argument("id", nargs="?")
