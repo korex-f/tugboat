@@ -38,6 +38,7 @@ Panel {
   property bool statusInitialized: false
   property var previousMediaStatus: ({})
   property bool mediaStatusInitialized: false
+  property string pluginVersion: ""
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color muted: Qt.darker(fg, 1.5)
   readonly property color accent: Color.accent
@@ -246,7 +247,7 @@ Panel {
   function closeForPopoutSwitch() { close() }
   function switchPanel(direction) { return bar && typeof bar.switchPanelFrom === "function" ? bar.switchPanelFrom(hostWidget || root, direction) : false }
 
-  Component.onCompleted: { provision(); refreshAriaInfo(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true }
+  Component.onCompleted: { provision(); refreshAriaInfo(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true; manifestVersionProc.command = ["cat", pathFromUrl(Qt.resolvedUrl("manifest.json"))]; manifestVersionProc.running = true }
   onOpenedChanged: if (!opened) resetSettingsView()
   Timer { interval: 1500; running: true; repeat: true; onTriggered: root.refresh() }
   ListModel { id: queueModel }
@@ -277,6 +278,7 @@ Panel {
     }}
   }
   Process { id: mediaDependencyProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) root.errorText=r.error } } }
+  Process { id: manifestVersionProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { try { var data=JSON.parse(text); root.pluginVersion=String(data.version || "") } catch (e) { root.pluginVersion="" } } } }
   Process { id: mediaStatusProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); var next=r.items || []; for (var i=0; i<next.length; i++) { var item=next[i], was=root.previousMediaStatus[item.gid]; if (root.mediaStatusInitialized && !was && item.status === "active") root.notify("Video download started", root.itemName(item), "low"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "complete") root.notify("Video download complete", root.itemName(item), "normal"); if (root.mediaStatusInitialized && was && was !== item.status && item.status === "error") root.notify("Video download failed", root.itemName(item) + ": " + (item.errorMessage || "yt-dlp error"), "critical") }; var statuses={}; for (var j=0; j<next.length; j++) statuses[next[j].gid]=next[j].status; root.previousMediaStatus=statuses; root.mediaStatusInitialized=true; root.replaceTransfers(next, true) } } }
   Process { id: mediaInspectProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); if (!r.ok) { root.errorText=r.error; return }; if (!r.media) { root.addRawUrl(root.mediaUrl); return }; root.mediaTitle=r.title; root.mediaIsPlaylist=Boolean(r.playlist); root.mediaPlaylistCount=Number(r.entryCount || 0); root.mediaFormats=[{id:"best",label:"Highest available quality"},{id:"audio",label:"Audio only"}].concat(r.formats || []); root.selectedMediaFormat="best"; root.mediaPickerVisible=true } } }
   Process { id: mediaStartProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : r.error; root.mediaPickerVisible=false; root.refresh() } } }
@@ -548,7 +550,7 @@ Panel {
               TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; textFormat: TextEdit.PlainText; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
               PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
-              Text { text: "Tugboat 0.1.1"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Text { text: root.pluginVersion ? "Tugboat " + root.pluginVersion : "Tugboat"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: root.ariaInfo.version || "aria2"; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: "j/k scroll  esc back  ? help"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Item { width: 1; height: Style.space(24) }
