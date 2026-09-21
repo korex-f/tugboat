@@ -88,7 +88,7 @@ Panel {
     if (item.files && item.files.length && item.files[0].path) return String(item.files[0].path).split("/").pop()
     return item.gid
   }
-  function typeLabel(item) { return item.bittorrent ? "TORRENT" : (item.media ? "VIDEO" : "HTTP") }
+  function typeLabel(item) { return item.bittorrent ? "TORRENT" : (item.cloud ? "CLOUD" : (item.media ? "VIDEO" : "HTTP")) }
   function stateLabel(item) { return item.status === "active" ? "DOWNLOADING" : String(item.status || "waiting").toUpperCase() }
   function itemMeta(item) {
     var eta = itemEta(item)
@@ -193,7 +193,12 @@ Panel {
   function addRawUrl(value) { addProc.command = ctl(["add", value]); addProc.running = true }
   function addUrl() {
     var value = addField.text.trim(); if (!value) return
+    if (value.indexOf("cloud:") === 0) { startCloud(value.substring(6)); addField.text = ""; return }
     mediaInspectProc.command = mediaCtl(["inspect", value]); mediaInspectProc.running = true; mediaUrl = value; addField.text = ""
+  }
+  function startCloud(source) {
+    var directory = settings && settings.downloadDirectory ? String(settings.downloadDirectory) : "~/Downloads"
+    mediaStartProc.command = mediaCtl(["cloud", source, "--directory", directory]); mediaStartProc.running = true
   }
   function startMedia() {
     var directory = settings && settings.downloadDirectory ? String(settings.downloadDirectory) : "~/Downloads"
@@ -226,13 +231,13 @@ Panel {
   function closeSettingsView() { settingsVisible = false; detailsVisible = false; browserPayload = ""; settingsFocusIndex = -1 }
   function openSettings() { settingsVisible = true; detailsVisible = false; refreshAriaInfo() }
   function focusSettingsControl(direction) {
-    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
+    var controls = [openConfig, rcloneConfigButton, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
     if (controls.length === 0) return
     settingsFocusIndex = (settingsFocusIndex + direction + controls.length) % controls.length
     controls[settingsFocusIndex].forceActiveFocus()
   }
   function activateSettingsFocus() {
-    var controls = [openConfig, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
+    var controls = [openConfig, rcloneConfigButton, autoStartButton, restartAriaButton, advancedButton, chromeConnectButton, firefoxConnectButton]
     if (settingsFocusIndex >= 0 && settingsFocusIndex < controls.length && controls[settingsFocusIndex].enabled)
       controls[settingsFocusIndex].clicked()
   }
@@ -354,7 +359,7 @@ Panel {
         Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; textFormat: Text.PlainText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
-          TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL or magnet link"; onAccepted: root.addUrl(); Keys.onEscapePressed: root.close() }
+          TextField { id: addField; width: parent.width - addButton.width - Style.space(6); placeholderText: "Paste URL, magnet, or cloud:remote:path"; onAccepted: root.addUrl(); Keys.onEscapePressed: root.close() }
           Button { id: addButton; iconText: "＋"; text: "Add"; onClicked: root.addUrl() }
         }
         Text { text: "Drop a .torrent anywhere in this panel"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
@@ -500,6 +505,10 @@ Panel {
               }
               Text { text: "Applies when aria2 is provisioned."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               PanelSeparator { foreground: root.fg }
+              PanelSectionHeader { text: "CLOUD FOLDERS"; foreground: root.fg }
+              Text { text: "Set up an rclone remote in a terminal, then add cloud:remote:path above. Example: cloud:onedrive:Shared/Folder."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Button { id: rcloneConfigButton; text: "Configure rclone"; bordered: true; focusable: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 1; Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "rclone config"]) } }
+              PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "ARIA2"; foreground: root.fg }
               Item { width: parent.width; height: Style.space(24)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Status"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
@@ -508,13 +517,13 @@ Panel {
               Column { width: parent.width; spacing: Style.space(5)
                 Item { width: parent.width; height: Style.space(24)
                   Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Start automatically"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                  Button { id: autoStartButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 1; root.setAutoStart(!root.ariaInfo.autoStart) } }
+                  Button { id: autoStartButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.ariaInfo.autoStart ? "On" : "Off"; tooltipText: "Toggle aria2 session auto-start"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 2; root.setAutoStart(!root.ariaInfo.autoStart) } }
                 }
                 Item { width: parent.width; height: Style.space(24)
-                  Button { id: restartAriaButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; bordered: true; focusable: true; foreground: root.fg; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: { root.settingsFocusIndex = 2; root.restartAria() } }
+                  Button { id: restartAriaButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconText: "󰑐"; iconSpinning: root.restartingAria; text: root.restartingAria ? "Restarting aria2…" : "Restart aria2"; bordered: true; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); enabled: !root.restartingAria; opacity: root.restartingAria ? 0.5 : 1; onClicked: { root.settingsFocusIndex = 3; root.restartAria() } }
                 }
               }
-              Button { id: advancedButton; text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 3; root.advancedVisible = !root.advancedVisible } }
+              Button { id: advancedButton; text: (root.advancedVisible ? "▾" : "▸") + " Advanced"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 4; root.advancedVisible = !root.advancedVisible } }
               Column { visible: root.advancedVisible; width: parent.width; spacing: Style.space(4)
                 Item { width: parent.width; height: Style.space(22)
                   Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RPC port"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
@@ -529,11 +538,11 @@ Panel {
               PanelSectionHeader { text: "BROWSER INTEGRATION"; foreground: root.fg }
               Item { width: parent.width; height: Style.space(28)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Chromium browsers"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                Button { id: chromeConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 4; root.connect("chrome") } }
+                Button { id: chromeConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 5; root.connect("chrome") } }
               }
               Item { width: parent.width; height: Style.space(28)
                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Firefox-based browsers"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
-                Button { id: firefoxConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 5; root.connect("firefox") } }
+                Button { id: firefoxConnectButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Connect"; focusable: true; fontFamily: root.fontFamily; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: { root.settingsFocusIndex = 6; root.connect("firefox") } }
               }
               Text { text: "Connect opens the extension store and local setup payload."; width: parent.width; wrapMode: Text.WordWrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; textFormat: TextEdit.PlainText; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }

@@ -1,6 +1,6 @@
 # Tugboat
 
-An Omarchy Quattro bar widget for aria2 HTTP/FTP/SFTP downloads, magnet links, and `.torrent` files.
+An Omarchy Quattro bar widget for aria2 HTTP/FTP/SFTP downloads, magnet links, `.torrent` files, yt-dlp media, and rclone cloud folders.
 
 ## Install
 
@@ -30,9 +30,22 @@ yt-dlp uses its Python API and progress hooks; video jobs appear beside aria2 jo
 
 Both `yt-dlp` and `ffmpeg` must already be installed. Tugboat checks this at startup and shows a clear panel error if either is absent; it never installs packages itself. An extraction error for a media site is shown in the panel.
 
+## Cloud folders
+
+Tugboat can copy folders from OneDrive, Google Drive, Box, Dropbox, and other services supported by [rclone](https://rclone.org/). Install `rclone` with your package manager, choose **Configure rclone** in Tugboat Settings, and complete `rclone config` for each account you want to use. The authorization happens in rclone's normal provider-approved flow; Tugboat never stores cloud credentials.
+
+Then paste a cloud source in the form `cloud:remote:path` into the main field. For example:
+
+```text
+cloud:onedrive:Shared/Project files
+cloud:gdrive:Team files/Assets
+```
+
+Tugboat copies the entire source folder recursively into the selected download directory and shows it in the queue, where it can be paused, resumed, removed, or cleared like a media job. A public browser share URL is not a provider-neutral folder API: make it accessible in the relevant rclone remote first (for example, by signing in and adding it to your accessible files), then use its remote path. This is why a pasted OneDrive folder URL previously reached aria2 and failed.
+
 ## Queue cleanup
 
-**Remove** stops an active job or removes one queue/history entry. **Pause all** and **Resume all** apply to both aria2 and media jobs. **Clear finished** removes all completed and failed queue entries at once. Neither action deletes downloaded files from disk.
+**Remove** stops an active job or removes one queue/history entry. **Pause all** and **Resume all** apply to aria2, media, and cloud jobs. **Clear finished** removes all completed and failed queue entries at once. Neither action deletes downloaded files from disk.
 
 ## Panel layout
 

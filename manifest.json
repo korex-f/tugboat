@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.dki.tugboat",
   "name": "Tugboat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "dki",
   "license": "MIT",
-  "description": "aria2-backed HTTP, magnet, and torrent downloads for the Omarchy bar.",
+  "description": "aria2 downloads plus yt-dlp media and rclone cloud folders for the Omarchy bar.",
   "kinds": ["bar-widget"],
   "entryPoints": {"barWidget": "BarWidget.qml"},
   "barWidget": {

@@ -31,6 +31,10 @@ def dependency_error():
     if not shutil.which("ffmpeg"):
         return "ffmpeg is required for video/audio stream merging. Install ffmpeg, then reopen Tugboat."
     return None
+def cloud_dependency_error():
+    if not shutil.which("rclone"):
+        return "Cloud folders require rclone. Install rclone, run 'rclone config', then add cloud:remote:path."
+    return None
 def public_formats(info):
     entries = info.get("entries") or []
     info = next((entry for entry in entries if entry), info)
@@ -69,13 +73,28 @@ def inspect(url):
         else:
             emit({"ok": True, "media": False})
 def worker(job_id):
-    import yt_dlp
     jobs = load_jobs(); job = jobs.get(job_id)
     if not job: return
     def update(status, **values):
         current = load_jobs(); item = current.get(job_id, {})
         item.update(values); item["status"] = status; item["updated"] = time.time()
         current[job_id] = item; save_jobs(current)
+    if job.get("kind") == "cloud":
+        try:
+            update("active", filename=job["source"])
+            result = subprocess.run(
+                ["rclone", "copy", job["source"], job["directory"], "--create-empty-src-dirs", "--stats=0", "--log-level=ERROR"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, check=False,
+            )
+            if result.returncode:
+                message = (result.stderr or "rclone could not copy this cloud folder").strip()
+                update("error", error=message, speed=0)
+            else:
+                update("complete", speed=0)
+        except Exception as exc:
+            update("error", error=str(exc), speed=0)
+        return
+    import yt_dlp
     def hook(data):
         state = data.get("status")
         if state == "downloading":
@@ -109,11 +128,23 @@ def start(args):
     process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "worker", job_id], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     job["pid"] = process.pid; jobs[job_id] = job; save_jobs(jobs)
     emit({"ok": True, "id": job_id})
+def start_cloud(args):
+    error = cloud_dependency_error()
+    if error: emit({"ok": False, "error": error}); return
+    source = args.source.strip()
+    if ":" not in source or source.startswith(":"):
+        emit({"ok": False, "error": "Use a configured rclone path such as cloud:onedrive:Shared/Folder."}); return
+    job_id = uuid.uuid4().hex[:12]
+    job = {"id": job_id, "kind": "cloud", "source": source, "title": source, "directory": os.path.expanduser(args.directory or "~/Downloads"), "status": "queued", "downloaded": 0, "total": 0, "speed": 0, "eta": 0, "created": time.time()}
+    jobs = load_jobs(); jobs[job_id] = job; save_jobs(jobs)
+    process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "worker", job_id], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    job["pid"] = process.pid; jobs[job_id] = job; save_jobs(jobs)
+    emit({"ok": True, "id": job_id})
 def status(_):
     items = []
     for item in load_jobs().values():
-        filename = item.get("filename") or item.get("title") or item["url"]
-        items.append({"gid": "yt:" + item["id"], "status": item.get("status", "queued"), "totalLength": str(item.get("total", 0)), "completedLength": str(item.get("downloaded", 0)), "downloadSpeed": str(item.get("speed", 0)), "files": [{"path": filename}], "media": True, "formatLabel": item.get("format", "best"), "errorMessage": item.get("error", "")})
+        filename = item.get("filename") or item.get("title") or item.get("url", item.get("source", ""))
+        items.append({"gid": "yt:" + item["id"], "status": item.get("status", "queued"), "totalLength": str(item.get("total", 0)), "completedLength": str(item.get("downloaded", 0)), "downloadSpeed": str(item.get("speed", 0)), "files": [{"path": filename}], "media": item.get("kind") != "cloud", "cloud": item.get("kind") == "cloud", "formatLabel": item.get("format", "best"), "errorMessage": item.get("error", "")})
     emit({"ok": True, "items": items})
 def action(args):
     jobs = load_jobs()
@@ -143,9 +174,10 @@ def main():
     parser = argparse.ArgumentParser(); sub = parser.add_subparsers(dest="cmd", required=True)
     x = sub.add_parser("inspect"); x.add_argument("url")
     x = sub.add_parser("start"); x.add_argument("url"); x.add_argument("--title"); x.add_argument("--format", default="best"); x.add_argument("--playlist", action="store_true"); x.add_argument("--directory")
+    x = sub.add_parser("cloud"); x.add_argument("source"); x.add_argument("--directory")
     sub.add_parser("status")
     sub.add_parser("check")
     x = sub.add_parser("action"); x.add_argument("action", choices=["pause", "resume", "remove", "resume-all", "clear-finished"]); x.add_argument("id", nargs="?")
     x = sub.add_parser("worker"); x.add_argument("id")
-    args = parser.parse_args(); {"inspect": lambda value: inspect(value.url), "start": start, "status": status, "check": check, "action": action, "worker": lambda value: worker(value.id)}[args.cmd](args)
+    args = parser.parse_args(); {"inspect": lambda value: inspect(value.url), "start": start, "cloud": start_cloud, "status": status, "check": check, "action": action, "worker": lambda value: worker(value.id)}[args.cmd](args)
 if __name__ == "__main__": main()
