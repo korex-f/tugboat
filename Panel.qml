@@ -548,7 +548,7 @@ Panel {
               TextArea { id: browserPayloadArea; visible: root.browserPayload !== ""; width: parent.width; height: visible ? Style.space(92) : 0; readOnly: true; text: root.browserPayload; textFormat: TextEdit.PlainText; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true; Keys.onEscapePressed: root.closeSettingsView() }
               PanelSeparator { foreground: root.fg }
               PanelSectionHeader { text: "ABOUT"; foreground: root.fg }
-              Text { text: "Tugboat 0.1.0"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+              Text { text: "Tugboat 0.1.1"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: root.ariaInfo.version || "aria2"; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Text { text: "j/k scroll  esc back  ? help"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
               Item { width: 1; height: Style.space(24) }
