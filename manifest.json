@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.dki.tugboat",
   "name": "Tugboat",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "dki",
   "license": "MIT",
   "description": "aria2 downloads plus yt-dlp media and rclone cloud folders for the Omarchy bar.",

@@ -41,7 +41,7 @@ cloud:onedrive:Shared/Project files
 cloud:gdrive:Team files/Assets
 ```
 
-Tugboat copies the entire source folder recursively into the selected download directory and shows it in the queue, where it can be paused, resumed, removed, or cleared like a media job. A public browser share URL is not a provider-neutral folder API: make it accessible in the relevant rclone remote first (for example, by signing in and adding it to your accessible files), then use its remote path. This is why a pasted OneDrive folder URL previously reached aria2 and failed.
+Tugboat copies the entire source folder recursively into the selected download directory and shows it in the queue, where it can be paused, resumed, removed, or cleared like a media job. Each cloud copy runs in an isolated process group, is stopped after 24 hours, and retains at most 16 KiB of rclone error output (with only the first 2 KiB shown in the panel). A public browser share URL is not a provider-neutral folder API: make it accessible in the relevant rclone remote first (for example, by signing in and adding it to your accessible files), then use its remote path. This is why a pasted OneDrive folder URL previously reached aria2 and failed.
 
 ## Queue cleanup
 

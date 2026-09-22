@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import select
 import shutil
 import signal
 import subprocess
@@ -13,6 +14,9 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "tugboat"
 JOBS = ROOT / "media-jobs.json"
+CLOUD_STDERR_LIMIT = 16 * 1024
+CLOUD_ERROR_LIMIT = 2048
+CLOUD_TIMEOUT_SECONDS = 24 * 60 * 60
 
 
 def emit(value): print(json.dumps(value, separators=(",", ":")))
@@ -35,6 +39,30 @@ def cloud_dependency_error():
     if not shutil.which("rclone"):
         return "Cloud folders require rclone. Install rclone, run 'rclone config', then add cloud:remote:path."
     return None
+def cloud_timeout_seconds():
+    try: return max(1, int(os.environ.get("TUGBOAT_CLOUD_TIMEOUT_SECONDS", CLOUD_TIMEOUT_SECONDS)))
+    except ValueError: return CLOUD_TIMEOUT_SECONDS
+def signal_job_groups(job, signum):
+    delivered, groups = False, set()
+    for value in (job.get("pid"), job.get("transferPgid")):
+        try:
+            group = os.getpgid(int(value or 0))
+            if group not in groups:
+                os.killpg(group, signum); groups.add(group)
+            delivered = True
+        except (ProcessLookupError, ValueError): pass
+    return delivered
+def stop_process_group(process):
+    try: os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError: pass
+    try: process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        try: os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError: pass
+        process.wait()
+def bounded_error(data):
+    text = bytes(data).decode("utf-8", "replace").strip()
+    return text[:CLOUD_ERROR_LIMIT]
 def public_formats(info):
     entries = info.get("entries") or []
     info = next((entry for entry in entries if entry), info)
@@ -80,19 +108,48 @@ def worker(job_id):
         item.update(values); item["status"] = status; item["updated"] = time.time()
         current[job_id] = item; save_jobs(current)
     if job.get("kind") == "cloud":
+        process = None
         try:
-            update("active", filename=job["source"])
-            result = subprocess.run(
+            timeout = cloud_timeout_seconds()
+            process = subprocess.Popen(
                 ["rclone", "copy", job["source"], job["directory"], "--create-empty-src-dirs", "--stats=0", "--log-level=ERROR"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, check=False,
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, start_new_session=True,
             )
-            if result.returncode:
-                message = (result.stderr or "rclone could not copy this cloud folder").strip()
-                update("error", error=message, speed=0)
+            # rclone has its own session so a backend cannot outlive a timed-out
+            # worker. Keep its PGID for pause/resume/remove as well.
+            update("active", filename=job["source"], transferPgid=process.pid)
+            captured, timed_out, overflowed, stderr_open = bytearray(), False, False, True
+            deadline = time.monotonic() + timeout
+            while stderr_open or process.poll() is None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True; break
+                readable, _, _ = select.select([process.stderr], [], [], min(0.25, remaining))
+                if not readable: continue
+                chunk = os.read(process.stderr.fileno(), 4096)
+                if not chunk:
+                    stderr_open = False; continue
+                available = CLOUD_STDERR_LIMIT - len(captured)
+                captured.extend(chunk[:max(0, available)])
+                if len(chunk) > available:
+                    overflowed = True; break
+            if timed_out or overflowed:
+                stop_process_group(process)
+                reason = "Cloud copy timed out after " + str(timeout) + " seconds" if timed_out else "Cloud copy produced too much error output"
+                detail = bounded_error(captured)
+                update("error", error=(reason + (": " + detail if detail else ""))[:CLOUD_ERROR_LIMIT], speed=0, transferPgid=0)
             else:
-                update("complete", speed=0)
+                result = process.wait()
+                message = bounded_error(captured)
+                if result:
+                    update("error", error=message or "rclone could not copy this cloud folder", speed=0, transferPgid=0)
+                else:
+                    update("complete", speed=0, transferPgid=0)
+            process.stderr.close()
         except Exception as exc:
-            update("error", error=str(exc), speed=0)
+            if process and process.poll() is None: stop_process_group(process)
+            if process and process.stderr: process.stderr.close()
+            update("error", error=str(exc)[:CLOUD_ERROR_LIMIT], speed=0, transferPgid=0)
         return
     import yt_dlp
     def hook(data):
@@ -151,8 +208,7 @@ def action(args):
     if args.action == "resume-all":
         for job in jobs.values():
             if job.get("status") == "paused":
-                try: os.killpg(os.getpgid(int(job.get("pid", 0))), signal.SIGCONT); job["status"] = "active"
-                except ProcessLookupError: pass
+                if signal_job_groups(job, signal.SIGCONT): job["status"] = "active"
         save_jobs(jobs); emit({"ok": True}); return
     if args.action == "clear-finished":
         for job_id in list(jobs):
@@ -161,15 +217,13 @@ def action(args):
         save_jobs(jobs); emit({"ok": True}); return
     job = jobs.get(args.id)
     if not job: emit({"ok": False, "error": "Media job not found"}); return
-    try:
-        pid = int(job.get("pid", 0)); group = os.getpgid(pid)
-        if args.action == "pause": os.killpg(group, signal.SIGSTOP); job["status"] = "paused"
-        elif args.action == "resume": os.killpg(group, signal.SIGCONT); job["status"] = "active"
-        elif args.action == "remove":
-            if pid: os.killpg(group, signal.SIGTERM)
-            del jobs[args.id]; save_jobs(jobs); emit({"ok": True}); return
-        jobs[args.id] = job; save_jobs(jobs); emit({"ok": True})
-    except ProcessLookupError: emit({"ok": False, "error": "Media worker is no longer running"})
+    if args.action == "pause" and signal_job_groups(job, signal.SIGSTOP): job["status"] = "paused"
+    elif args.action == "resume" and signal_job_groups(job, signal.SIGCONT): job["status"] = "active"
+    elif args.action == "remove":
+        signal_job_groups(job, signal.SIGTERM)
+        del jobs[args.id]; save_jobs(jobs); emit({"ok": True}); return
+    else: emit({"ok": False, "error": "Media worker is no longer running"}); return
+    jobs[args.id] = job; save_jobs(jobs); emit({"ok": True})
 def main():
     parser = argparse.ArgumentParser(); sub = parser.add_subparsers(dest="cmd", required=True)
     x = sub.add_parser("inspect"); x.add_argument("url")
