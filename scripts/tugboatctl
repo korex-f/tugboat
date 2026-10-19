@@ -55,8 +55,8 @@ def ensure(args):
         command("systemctl", "--user", "disable", str(PROXY_UNIT))
         command("systemctl", "--user", "start", str(PROXY_UNIT))
     if migrate_proxy:
-        command("systemctl", "--user", "restart", str(UNIT))
-        command("systemctl", "--user", "restart", str(PROXY_UNIT))
+        command("systemctl", "--user", "restart", "tugboat-aria2.service")
+        command("systemctl", "--user", "restart", "tugboat-rpc-proxy.service")
     emit({"ok":result.returncode == 0,"error":result.stderr.strip(),"port":cfg["port"]})
 def rpc(method, params=[]):
     cfg = load()
