@@ -20,10 +20,12 @@ def ensure(args):
         emit({"ok":False,"error":"aria2c is not installed. Install the aria2 package, then reopen this panel."}); return
     ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
     cfg = load()
+    migrate_proxy = bool(cfg and "ariaPort" not in cfg)
     desired_port = int(args.port or 0)
     desired_directory = os.path.expanduser(args.directory or "~/Downloads")
     if not cfg:
-        cfg = {"port":desired_port or free_port(),"secret":secrets.token_urlsafe(32),"directory":desired_directory,"autoStart":bool(args.auto_start),"createdAt":int(time.time())}
+        cfg = {"port":desired_port or free_port(),"ariaPort":free_port(),"proxyPort":desired_port or 0,"secret":secrets.token_urlsafe(32),"directory":desired_directory,"autoStart":bool(args.auto_start),"createdAt":int(time.time())}
+        if not cfg["proxyPort"]: cfg["proxyPort"] = cfg["port"]
         CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
     else:
         # A zero port means "keep the automatically chosen port". Explicit
@@ -31,12 +33,16 @@ def ensure(args):
         cfg["directory"] = desired_directory
         if desired_port: cfg["port"] = desired_port
         if "autoStart" not in cfg: cfg["autoStart"] = bool(args.auto_start)
+        if migrate_proxy:
+            cfg["ariaPort"] = free_port()
+            cfg["proxyPort"] = cfg["port"]
+        elif desired_port:
+            cfg["proxyPort"] = desired_port
         CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
     Path(os.path.expanduser(cfg["directory"])).mkdir(mode=0o700, parents=True, exist_ok=True)
-    ARIA_CONF.write_text("\n".join(["enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=true", f"rpc-listen-port={cfg['port']}", f"rpc-secret={cfg['secret']}", f"dir={cfg['directory']}", "continue=true", "bt-enable-lpd=true", "seed-time=0", "file-allocation=none", "summary-interval=0", "max-concurrent-downloads=5"]) + "\n")
+    ARIA_CONF.write_text("\n".join(["enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=true", f"rpc-listen-port={cfg['ariaPort']}", f"rpc-secret={cfg['secret']}", f"dir={cfg['directory']}", "continue=true", "bt-enable-lpd=true", "seed-time=0", "file-allocation=none", "summary-interval=0", "max-concurrent-downloads=5"]) + "\n")
     ARIA_CONF.chmod(0o600)
     UNIT.write_text(unit_text())
-    cfg.setdefault("proxyPort", free_port())
     CONFIG.write_text(json.dumps(cfg)); CONFIG.chmod(0o600)
     PROXY_UNIT.write_text(proxy_unit_text())
     command("systemctl", "--user", "daemon-reload")
@@ -48,12 +54,15 @@ def ensure(args):
         result = command("systemctl", "--user", "start", str(UNIT))
         command("systemctl", "--user", "disable", str(PROXY_UNIT))
         command("systemctl", "--user", "start", str(PROXY_UNIT))
+    if migrate_proxy:
+        command("systemctl", "--user", "restart", str(UNIT))
+        command("systemctl", "--user", "restart", str(PROXY_UNIT))
     emit({"ok":result.returncode == 0,"error":result.stderr.strip(),"port":cfg["port"]})
 def rpc(method, params=[]):
     cfg = load()
     if not cfg: raise RuntimeError("Tugboat has not been provisioned")
     payload = {"jsonrpc":"2.0","id":"oma","method":"aria2."+method,"params":["token:"+cfg["secret"]]+params}
-    req = Request(f"http://127.0.0.1:{cfg['port']}/jsonrpc", data=json.dumps(payload).encode(), headers={"Content-Type":"application/json"})
+    req = Request(f"http://127.0.0.1:{cfg.get('ariaPort', cfg['port'])}/jsonrpc", data=json.dumps(payload).encode(), headers={"Content-Type":"application/json"})
     response = json.loads(urlopen(req, timeout=3).read())
     if "error" in response: raise RuntimeError(response["error"].get("message", "RPC failed"))
     return response["result"]
@@ -138,9 +147,9 @@ def proxy(_):
                                 choice = subprocess.run(["notify-send", "--wait", "--action=again=Download again", "--action=cancel=Cancel", "Tugboat: already downloaded or queued", name], capture_output=True, text=True)
                                 if choice.stdout.strip() != "again":
                                     return {"jsonrpc":"2.0", "id":value.get("id"), "error":{"code":-1,"message":"Duplicate download cancelled"}}
-                            request = Request(f"http://127.0.0.1:{cfg['port']}/jsonrpc", data=json.dumps(value).encode(), headers={"Content-Type":"application/json"})
+                            request = Request(f"http://127.0.0.1:{cfg['ariaPort']}/jsonrpc", data=json.dumps(value).encode(), headers={"Content-Type":"application/json"})
                             return json.loads(urlopen(request, timeout=30).read())
-                    request = Request(f"http://127.0.0.1:{cfg['port']}/jsonrpc", data=json.dumps(value).encode(), headers={"Content-Type":"application/json"})
+                    request = Request(f"http://127.0.0.1:{cfg['ariaPort']}/jsonrpc", data=json.dumps(value).encode(), headers={"Content-Type":"application/json"})
                     return json.loads(urlopen(request, timeout=30).read())
                 output = [forward(item) for item in payload] if isinstance(payload, list) else forward(payload)
                 body = json.dumps(output).encode()
