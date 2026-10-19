@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Private, local control plane for the Tugboat Quattro plugin."""
-import argparse, base64, json, os, secrets, shutil, socket, subprocess, sys, time
+import argparse, base64, json, os, secrets, shutil, socket, subprocess, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -114,6 +114,7 @@ def browser(args):
     emit({"ok":True,"browser":target,"config":{"rpcUrl":f"http://127.0.0.1:{cfg.get('proxyPort', cfg['port'])}/jsonrpc","rpcSecret":cfg["secret"]}})
 
 def proxy(_):
+    duplicate_lock = threading.Lock()
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_): pass
         def do_POST(self):
@@ -126,16 +127,19 @@ def proxy(_):
                     authorized = bool(params and params[0] == "token:" + cfg["secret"])
                     args = params[1:] if params and params[0] == "token:" + cfg["secret"] else params
                     if authorized and method == "aria2.addUri" and args and args[0]:
-                        uri = args[0][0]
-                        fields = ["gid", "status", "files", "bittorrent"]
-                        # shortcut: only the latest 100 stopped jobs are checked; paginate if users need older history.
-                        existing = rpc("tellActive", [fields]) + rpc("tellWaiting", [0, 100, fields]) + rpc("tellStopped", [0, 100, fields])
-                        match = next((item for item in existing if any(uri == u.get("uri") for f in item.get("files", []) for u in f.get("uris", []))), None)
-                        if match:
-                            name = next((Path(f.get("path", "")).name for f in match.get("files", []) if f.get("path")), uri)
-                            choice = subprocess.run(["notify-send", "--wait", "--action=again=Download again", "--action=cancel=Cancel", "Tugboat: already downloaded or queued", name], capture_output=True, text=True)
-                            if choice.stdout.strip() != "again":
-                                return {"jsonrpc":"2.0", "id":value.get("id"), "error":{"code":-1,"message":"Duplicate download cancelled"}}
+                        with duplicate_lock:
+                            uri = args[0][0]
+                            fields = ["gid", "status", "files", "bittorrent"]
+                            # shortcut: only the latest 100 stopped jobs are checked; paginate if users need older history.
+                            existing = rpc("tellActive", [fields]) + rpc("tellWaiting", [0, 100, fields]) + rpc("tellStopped", [0, 100, fields])
+                            match = next((item for item in existing if any(uri == u.get("uri") for f in item.get("files", []) for u in f.get("uris", []))), None)
+                            if match:
+                                name = next((Path(f.get("path", "")).name for f in match.get("files", []) if f.get("path")), uri)
+                                choice = subprocess.run(["notify-send", "--wait", "--action=again=Download again", "--action=cancel=Cancel", "Tugboat: already downloaded or queued", name], capture_output=True, text=True)
+                                if choice.stdout.strip() != "again":
+                                    return {"jsonrpc":"2.0", "id":value.get("id"), "error":{"code":-1,"message":"Duplicate download cancelled"}}
+                            request = Request(f"http://127.0.0.1:{cfg['port']}/jsonrpc", data=json.dumps(value).encode(), headers={"Content-Type":"application/json"})
+                            return json.loads(urlopen(request, timeout=30).read())
                     request = Request(f"http://127.0.0.1:{cfg['port']}/jsonrpc", data=json.dumps(value).encode(), headers={"Content-Type":"application/json"})
                     return json.loads(urlopen(request, timeout=30).read())
                 output = [forward(item) for item in payload] if isinstance(payload, list) else forward(payload)
