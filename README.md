@@ -18,7 +18,7 @@ omarchy plugin add https://github.com/korex-f/tugboat.git --enable
 
 With an interactive `--enable` install, Omarchy asks whether to place Tugboat on the left, center, or right of the bar. This is the standard placement flow for bar-widget plugins; non-interactive installs use Tugboat's right-side default.
 
-The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses free loopback ports, writes a mode-`0600` aria2 configuration, and enables user systemd services for aria2 and the browser RPC proxy. No aria2 configuration is required.
+The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses free loopback ports, writes a mode-`0600` aria2 configuration, and enables user systemd services for aria2 and the browser RPC proxy. The existing aria2 RPC port is the browser-facing proxy port, so fresh installs route browser downloads through duplicate detection automatically. No aria2 configuration is required.
 
 ## Video and audio URLs
 
@@ -56,7 +56,7 @@ The panel is organized as a compact download center: a live aria2 status header,
 Choose **Connect** beside the browser family you use. **Chromium browsers** covers Chrome, Brave, Vivaldi, Edge, Opera, and Chromium; **Firefox-based browsers** covers Firefox and Zen. It opens the relevant store page and displays a one-time local connection payload.
 
 1. Install the extension from the store page that opens, then open its Options or Settings page.
-2. Copy the payload’s `rpcUrl` value into the extension field named **RPC URL**, **JSON-RPC URL**, or similar. Keep the `/jsonrpc` suffix. This URL goes through Tugboat’s local proxy, which can ask before adding a repeated link.
+2. Copy the payload’s `rpcUrl` value into the extension field named **RPC URL**, **JSON-RPC URL**, or similar. Keep the `/jsonrpc` suffix. Repeated links open the Tugboat panel with **Download again** and **Cancel** choices.
 3. Copy `rpcSecret` into the extension field named **RPC secret**, **Secret key**, or **Token**. Use the raw value as shown; do not add `token:` unless that extension explicitly asks for it.
 4. Save the extension settings and send a small download or magnet link to confirm that it reaches Tugboat.
 

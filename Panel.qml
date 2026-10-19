@@ -8,6 +8,7 @@ import qs.Ui
 Panel {
   id: root
   moduleName: "io.github.dki.tugboat"
+  ipcTarget: "io.github.dki.tugboat"
   manageIpc: false
   property var anchorItem: null
   property var hostWidget: null
@@ -15,6 +16,8 @@ Panel {
   property var transfers: []
   property var mediaTransfers: []
   property bool mediaPickerVisible: false
+  property string duplicateRequestId: ""
+  property string duplicateName: ""
   property string mediaUrl: ""
   property string mediaTitle: ""
   property var mediaFormats: []
@@ -217,6 +220,8 @@ Panel {
     Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "nvim " + Util.shellQuote(path)])
   }
   function notify(title, body, urgency) { notifyProc.command = ["notify-send", "-a", "Tugboat", "-u", urgency || "normal", title, body]; notifyProc.running = true }
+  function showDuplicate(requestId, name) { duplicateRequestId = requestId; duplicateName = name; root.open() }
+  function resolveDuplicate(approved) { if (!duplicateRequestId) return; duplicateResolveProc.command = ctl(["resolve-duplicate", duplicateRequestId, approved ? "yes" : "no"]); duplicateResolveProc.running = true; duplicateRequestId = "" }
   function open() { root.controller.show(); refresh() }
   function resetSettingsView() {
     settingsVisible = false
@@ -248,7 +253,12 @@ Panel {
   function switchPanel(direction) { return bar && typeof bar.switchPanelFrom === "function" ? bar.switchPanelFrom(hostWidget || root, direction) : false }
 
   Component.onCompleted: { provision(); refreshAriaInfo(); mediaDependencyProc.command = mediaCtl(["check"]); mediaDependencyProc.running = true; manifestVersionProc.command = ["cat", pathFromUrl(Qt.resolvedUrl("manifest.json"))]; manifestVersionProc.running = true }
-  onOpenedChanged: if (!opened) resetSettingsView()
+  onOpenedChanged: if (!opened) { if (duplicateRequestId) resolveDuplicate(false); resetSettingsView() }
+  IpcHandler {
+    target: root.ipcTarget
+    function open(): void { root.open() }
+    function duplicate(requestId: string, name: string): string { root.showDuplicate(requestId, name); return "ok" }
+  }
   Timer { interval: 1500; running: true; repeat: true; onTriggered: root.refresh() }
   ListModel { id: queueModel }
   Process {
@@ -290,6 +300,7 @@ Panel {
   Process { id: restartAriaProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.restartingAria=false; root.errorText=r.ok ? "" : (r.error || "Could not restart aria2"); root.refresh(); root.refreshAriaInfo() } } }
   Process { id: autoStartProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var r=JSON.parse(text); root.errorText=r.ok ? "" : (r.error || "Could not change auto-start"); root.refreshAriaInfo() } } }
   Process { id: notifyProc }
+  Process { id: duplicateResolveProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { try { var r=JSON.parse(text); if (!r.ok) root.errorText=r.error } catch(e) { root.errorText="Could not resolve duplicate download" } } } }
 
   KeyboardPanel {
     id: panel
@@ -358,6 +369,22 @@ Panel {
           Text { anchors.left: parent.left; anchors.bottom: parent.bottom; text: root.downloadCount + " download" + (root.downloadCount === 1 ? "" : "s") + " · " + root.pausedCount + " paused"; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
         PanelSeparator { foreground: root.fg }
+        Rectangle {
+          visible: root.duplicateRequestId !== ""
+          width: parent.width; height: visible ? Style.space(104) : 0
+          radius: Style.cornerRadius
+          color: root.surface
+          border.width: Style.space(1); border.color: root.accent
+          Column {
+            anchors.fill: parent; anchors.margins: Style.space(10); spacing: Style.space(7)
+            Text { text: "Already downloaded or in the queue"; color: root.fg; font.family: root.fontFamily; font.bold: true; font.pixelSize: Style.font.body }
+            Text { width: parent.width; text: root.duplicateName; textFormat: Text.PlainText; color: root.muted; font.family: root.fontFamily; elide: Text.ElideMiddle }
+            Row { spacing: Style.space(8)
+              Button { text: "Download again"; onClicked: root.resolveDuplicate(true) }
+              Button { text: "Cancel"; onClicked: root.resolveDuplicate(false) }
+            }
+          }
+        }
         Text { visible: root.errorText !== ""; width: parent.width; text: root.errorText; textFormat: Text.PlainText; color: Color.urgent; wrapMode: Text.WordWrap }
         Row {
           width: parent.width; spacing: Style.space(6)
