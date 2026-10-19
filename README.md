@@ -18,7 +18,7 @@ omarchy plugin add https://github.com/korex-f/tugboat.git --enable
 
 With an interactive `--enable` install, Omarchy asks whether to place Tugboat on the left, center, or right of the bar. This is the standard placement flow for bar-widget plugins; non-interactive installs use Tugboat's right-side default.
 
-The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses a free loopback port unless configured otherwise, writes a mode-`0600` aria2 configuration, and enables a user systemd service. No aria2 configuration is required.
+The first panel open creates `~/.config/tugboat/` (mode `0700`), generates a random RPC secret, chooses free loopback ports, writes a mode-`0600` aria2 configuration, and enables user systemd services for aria2 and the browser RPC proxy. No aria2 configuration is required.
 
 ## Video and audio URLs
 
@@ -56,7 +56,7 @@ The panel is organized as a compact download center: a live aria2 status header,
 Choose **Connect** beside the browser family you use. **Chromium browsers** covers Chrome, Brave, Vivaldi, Edge, Opera, and Chromium; **Firefox-based browsers** covers Firefox and Zen. It opens the relevant store page and displays a one-time local connection payload.
 
 1. Install the extension from the store page that opens, then open its Options or Settings page.
-2. Copy the payload’s `rpcUrl` value into the extension field named **RPC URL**, **JSON-RPC URL**, or similar. Keep the `/jsonrpc` suffix.
+2. Copy the payload’s `rpcUrl` value into the extension field named **RPC URL**, **JSON-RPC URL**, or similar. Keep the `/jsonrpc` suffix. This URL goes through Tugboat’s local proxy, which can ask before adding a repeated link.
 3. Copy `rpcSecret` into the extension field named **RPC secret**, **Secret key**, or **Token**. Use the raw value as shown; do not add `token:` unless that extension explicitly asks for it.
 4. Save the extension settings and send a small download or magnet link to confirm that it reaches Tugboat.
 
@@ -64,7 +64,7 @@ The payload is shown only for the current handoff. It is cleared when you close 
 
 The extension-store Install button must be clicked by the user. This plugin does not sideload or inject extensions. It also does not install a native-messaging host because neither supported store flow requires one for direct local aria2 RPC; if an extension build explicitly requires one, use that extension’s signed, documented host package.
 
-The daemon listens only on `127.0.0.1`. The secret is never logged; it is only read for local RPC calls and rendered in the explicitly requested browser handoff field.
+Both services listen only on `127.0.0.1`. The secret is never logged; it is only read for local RPC calls and rendered in the explicitly requested browser handoff field. Existing browser extensions configured with the old direct aria2 URL must be updated with the new payload for duplicate prompts to work.
 
 ## Manual fallback
 
